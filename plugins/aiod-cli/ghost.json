@@ -70,7 +70,7 @@
             "description": "针对指定沙箱实例的网关地址（可选）"
           }
         },
-        "required": [\"cmd\"]
+        "required": ["cmd"]
       }
     },
     {
@@ -83,7 +83,7 @@
           "args": { "type": "array", "items": { "type": "string" }, "description": "参数列表" },
           "base": { "type": "string", "description": "沙箱网关地址（可选）" }
         },
-        "required": [\"cmd\"]
+        "required": ["cmd"]
       }
     },
     {
@@ -95,7 +95,7 @@
           "taskId": { "type": "string", "description": "任务 ID" },
           "offset": { "type": "integer", "description": "起始行/偏移" }
         },
-        "required": [\"taskId\"]
+        "required": ["taskId"]
       }
     },
     {
@@ -106,7 +106,7 @@
         "properties": {
           "taskId": { "type": "string", "description": "任务 ID" }
         },
-        "required": [\"taskId\"]
+        "required": ["taskId"]
       }
     }
   ]
