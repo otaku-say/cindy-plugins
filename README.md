@@ -1,6 +1,6 @@
 # Cindy Plugins Market（Cindy 自定义插件市场）
 
-[![Market Version](https://img.shields.io/badge/market-v0.1.1-blue.svg)](https://github.com/otaku-say/cindy-plugins)
+[![Market Version](https://img.shields.io/badge/market-v0.1.2-blue.svg)](https://github.com/otaku-say/cindy-plugins)
 [![Platform Matrix](https://img.shields.io/badge/platforms-6%20architectures-green.svg)](https://github.com/otaku-say/cindy-plugins)
 [![Security Audited](https://img.shields.io/badge/security-safeStorage%20isolated-orange.svg)](https://github.com/otaku-say/cindy-plugins)
 
@@ -44,7 +44,7 @@ https://github.com/otaku-say/cindy-plugins
 | 插件 ID | 展示名称 | 指令前缀 | 架构覆盖 | 一句话说明 |
 | :--- | :--- | :--- | :--- | :--- |
 | **`cube-cli`** | **Cube CLI** | `$cube` | 6 架构全覆盖 | CubeSandbox 控制面遥控器：创建沙箱、生命周期启停、端口探测与元数据管理 |
-| **`aiod-cli`** | **Aiod CLI** | `$aiod` | `macos` / `linux` (`arm64`, `amd64`) | 沙箱内部遥控器：文件读写传输、进程交互、浏览器遥控与 MCP Server |
+| **`aiod-cli`** | **Aiod CLI** | `$aiod` | 6 架构全覆盖 | 沙箱内部遥控器：文件读写传输、进程交互、浏览器遥控与 MCP Server |
 
 ---
 

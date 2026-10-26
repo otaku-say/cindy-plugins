@@ -22,14 +22,38 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: 彻底清除 main 分支二进制占用
+      - name: 安装 Zig 交叉编译器
+        uses: mlugg/setup-zig@v2
+        with:
+          version: 0.17.0
+
+      - name: 编译补齐 Windows aiod-cli 原生二进制
         shell: bash
         run: |
+          git clone --depth 1 https://github.com/otaku-say/sandbox-cli.git /tmp/upstream-src
+          mkdir -p .cache/upstream/aiod-cli
+          
+          echo "=== 交叉编译 Windows 64位 原生 aiod-cli.exe ==="
+          cd /tmp/upstream-src/aiod-cli
+          zig build -Doptimize=ReleaseFast -Dtarget=x86_64-windows-gnu
+          cp zig-out/bin/aiod-cli.exe $GITHUB_WORKSPACE/.cache/upstream/aiod-cli/aiod-cli-x86_64-windows-gnu.exe
+          
+          echo "=== 交叉编译 Windows ARM64 原生 aiod-cli.exe ==="
+          zig build -Doptimize=ReleaseFast -Dtarget=aarch64-windows-gnu
+          cp zig-out/bin/aiod-cli.exe $GITHUB_WORKSPACE/.cache/upstream/aiod-cli/aiod-cli-aarch64-windows-gnu.exe
+          
+          cd $GITHUB_WORKSPACE
+          ls -la .cache/upstream/aiod-cli/*.exe
+
+      - name: 将全架构二进制矩阵内嵌进 main 分支
+        shell: bash
+        run: |
+          python3 scripts/embed-binaries.py
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git rm -rf plugins/*/bin/ 2>/dev/null || true
+          git add plugins/*/bin/
           if ! git diff --cached --quiet; then
-            git commit -m "chore: 彻底清除 main 分支内嵌二进制，保持主干零占用"
+            git commit -m "chore: 自动化同步补齐全架构二进制矩阵到 main 分支"
             git push origin main
           fi
 
@@ -51,8 +75,8 @@ jobs:
       - name: 发布各平台 .cindy 资产到 Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v0.1.1
-          name: "v0.1.1 - 规范全平台架构专属轻量分发"
+          tag_name: v0.1.2
+          name: "v0.1.2 - 补齐 Windows 平台全架构二进制，实现 6 大平台全量双插件闭环"
           files: dist/packages/*
           make_latest: true
         env:

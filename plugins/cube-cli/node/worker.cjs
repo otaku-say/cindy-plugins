@@ -15,17 +15,27 @@ function reply(id, result, error) {
   process.stdout.write(JSON.stringify(resp) + '\n');
 }
 
+function getStandardPlatformKey() {
+  const osMap = { darwin: 'macos', win32: 'windows', linux: 'linux' };
+  const archMap = { x64: 'amd64', x86_64: 'amd64', arm64: 'arm64', aarch64: 'arm64' };
+  const os = osMap[process.platform] || process.platform;
+  const arch = archMap[process.arch] || process.arch;
+  return `${os}-${arch}`;
+}
+
 function pruneHeterogeneousBinaries(exeName) {
   try {
     const binDir = path.resolve(__dirname, '..', 'bin');
     if (!fs.existsSync(binDir)) return;
 
     const currentKey = `${process.platform}-${process.arch}`;
+    const standardKey = getStandardPlatformKey();
     const targetBin = path.join(binDir, exeName);
 
-    // 1. 如果顶层二进制不存在，从匹配当前机器架构的子目录复制提升
+    // 1. 如果顶层二进制不存在，从匹配当前机器架构的标准/兼容子目录复制提升
     if (!fs.existsSync(targetBin)) {
       const candidates = [
+        path.join(binDir, standardKey, exeName),
         path.join(binDir, currentKey, exeName),
         path.join(binDir, `${process.platform === 'darwin' ? 'macos' : process.platform}-${process.arch}`, exeName)
       ];
