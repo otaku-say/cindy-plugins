@@ -7,6 +7,7 @@ on:
 
 permissions:
   contents: write
+  issues: write
 
 jobs:
   build:
@@ -32,10 +33,19 @@ jobs:
             git push origin main
           fi
 
+      - name: 安装 MinGW 交叉编译器（生成 Windows 原生 Shim）
+        shell: bash
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq gcc-mingw-w64-x86-64
+
       - name: 构建单平台瘦身包与市场清单
         shell: bash
         run: |
-          python3 -u scripts/build-market.py
+          python3 -u scripts/build-market.py 2>&1 | tee /tmp/build.log || {
+            python3 scripts/report-err.py /tmp/build.log || true
+            exit 1
+          }
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -47,8 +57,8 @@ jobs:
       - name: 发布各平台 .cindy 资产到 Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v0.1.0
-          name: "v0.1.0 - CubeSandbox 插件全平台发布"
+          tag_name: v0.1.1
+          name: "v0.1.1 - 规范全平台架构专属轻量分发"
           files: dist/packages/*
           make_latest: true
         env:
