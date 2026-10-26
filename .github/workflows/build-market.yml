@@ -3,8 +3,6 @@ name: Build & Release Cindy Plugins Market
 on:
   push:
     branches: [main]
-    paths-ignore:
-      - 'plugins/**/bin/**'
   workflow_dispatch:
 
 permissions:
@@ -22,6 +20,17 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
+
+      - name: 彻底清除 main 分支二进制占用
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git rm -rf plugins/*/bin/ 2>/dev/null || true
+          if ! git diff --cached --quiet; then
+            git commit -m "chore: 彻底清除 main 分支内嵌二进制，保持主干零占用"
+            git push origin main
+          fi
 
       - name: 构建单平台瘦身包与市场清单
         run: |
@@ -42,23 +51,9 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: 推送单平台轻量分支 (plat/*)
+      - name: 清理旧命名分支并推送 6 大标准架构独立分支 (plat/*)
         shell: bash
         run: |
           python3 scripts/build-market.py --push-branches
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: 同步全架构二进制到 main 分支插件目录
-        shell: bash
-        run: |
-          python3 scripts/embed-binaries.py
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add plugins/
-          if ! git diff --cached --quiet; then
-            git commit -m "chore: 为 main 分支各插件预置全系统芯片架构二进制矩阵"
-            git push origin main
-          fi
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
