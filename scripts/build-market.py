@@ -29,9 +29,21 @@ def load_manifest():
 def download_file(url, dest_path):
     dest_path.parent.mkdir(parents=True, exist_ok=True)
     print(f"  [HTTP] 下载: {url} -> {dest_path.name}")
-    req = urllib.request.Request(url, headers={"User-Agent": "cindy-market-engine"})
-    with urllib.request.urlopen(req) as resp, open(dest_path, "wb") as out:
-        shutil.copyfileobj(resp, out)
+    headers = {"User-Agent": "cindy-market-engine"}
+    token = os.environ.get("GITHUB_TOKEN")
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+    req = urllib.request.Request(url, headers=headers)
+    try:
+        with urllib.request.urlopen(req) as resp, open(dest_path, "wb") as out:
+            shutil.copyfileobj(resp, out)
+    except Exception as e:
+        print(f"  [FALLBACK] urllib 失败 ({e})，切换 curl 下载...")
+        import subprocess
+        curl_cmd = ["curl", "-fsSL", url, "-o", str(dest_path)]
+        if token:
+            curl_cmd[2:2] = ["-H", f"Authorization: Bearer {token}"]
+        subprocess.run(curl_cmd, check=True)
 
 def get_file_sha256(file_path):
     h = hashlib.sha256()
@@ -273,8 +285,14 @@ def push_all_branches(manifest):
             print(f"  [FAIL] plat/{plat_name} 推送失败！")
 
 if __name__ == "__main__":
-    if "--push-branches" in sys.argv:
-        m = load_manifest()
-        push_all_branches(m)
-    else:
-        build_all()
+    import traceback
+    try:
+        if "--push-branches" in sys.argv:
+            m = load_manifest()
+            push_all_branches(m)
+        else:
+            build_all()
+    except Exception as e:
+        print(f"\n[CRITICAL ERROR] 执行失败: {e}", file=sys.stderr, flush=True)
+        traceback.print_exc(file=sys.stderr)
+        sys.exit(1)

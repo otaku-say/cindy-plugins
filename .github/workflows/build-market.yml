@@ -33,8 +33,11 @@ jobs:
           fi
 
       - name: 构建单平台瘦身包与市场清单
+        shell: bash
         run: |
-          python3 scripts/build-market.py
+          python3 -u scripts/build-market.py
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: 检查生成产物
         run: |
@@ -54,6 +57,6 @@ jobs:
       - name: 清理旧命名分支并推送 6 大标准架构独立分支 (plat/*)
         shell: bash
         run: |
-          python3 scripts/build-market.py --push-branches
+          python3 -u scripts/build-market.py --push-branches
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
