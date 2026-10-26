@@ -1,0 +1,74 @@
+name: Build & Release Cindy Plugins Market
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: 设置 Python 环境
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: 构建单平台瘦身包与市场清单
+        run: |
+          python3 scripts/build-market.py
+
+      - name: 检查生成产物
+        run: |
+          ls -la dist/packages/
+          cat .agents/plugins/marketplace.json | head -n 40
+
+      - name: 发布各平台 .cindy 资产到 Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v0.1.0
+          name: "v0.1.0 - CubeSandbox 插件全平台发布"
+          files: dist/packages/*
+          make_latest: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 推送单平台轻量分支 (plat/*)
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          
+          # 读取平台列表
+          platforms=$(python3 -c "import json; print(' '.join(json.load(open('scripts/manifest.json'))['platforms'].keys()))")
+          
+          for plat in $platforms; do
+            echo "=== 更新平台分支: plat/$plat ==="
+            plat_dir="dist/platforms/$plat"
+            if [ -d "$plat_dir" ]; then
+              # 创建临时分支或检出 orphan 分支
+              tmp_branch="tmp-plat-$plat"
+              git checkout --orphan "$tmp_branch"
+              git rm -rf . >/dev/null 2>&1 || true
+              
+              # 复制该平台专属文件
+              cp -r $plat_dir/* .
+              cp -r $plat_dir/.* . 2>/dev/null || true
+              
+              # 提交并强制推送到远端对应平台分支
+              git add -A
+              git commit -m "chore(release): auto-assembled $plat packages"
+              git push origin "$tmp_branch:plat/$plat" --force
+              
+              # 切回 main
+              git checkout main
+              git branch -D "$tmp_branch"
+            fi
+          done
