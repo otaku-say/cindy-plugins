@@ -1,0 +1,83 @@
+{
+  "name": "Cindy Plugins Market",
+  "owner": "otaku-say",
+  "repo": "cindy-plugins",
+  "description": "Cindy 自定义插件市场（官方与社区高质量插件，支持 6 平台全架构自动适配）",
+  "platforms": {
+    "macos-arm64": {
+      "os": "darwin",
+      "arch": "arm64",
+      "target": "aarch64-macos",
+      "name_label": "macOS Apple Silicon (arm64)",
+      "ext": ""
+    },
+    "macos-x64": {
+      "os": "darwin",
+      "arch": "x64",
+      "target": "x86_64-macos",
+      "name_label": "macOS Intel (x64)",
+      "ext": ""
+    },
+    "win-x64": {
+      "os": "win32",
+      "arch": "x64",
+      "target": "x86_64-windows-gnu",
+      "name_label": "Windows x64",
+      "ext": ".exe"
+    },
+    "win-arm64": {
+      "os": "win32",
+      "arch": "arm64",
+      "target": "aarch64-windows-gnu",
+      "name_label": "Windows arm64",
+      "ext": ".exe"
+    },
+    "linux-x64": {
+      "os": "linux",
+      "arch": "x64",
+      "target": "x86_64-linux-musl",
+      "name_label": "Linux x86_64 (musl/glibc)",
+      "ext": ""
+    },
+    "linux-arm64": {
+      "os": "linux",
+      "arch": "arm64",
+      "target": "aarch64-linux-musl",
+      "name_label": "Linux aarch64 (musl/glibc)",
+      "ext": ""
+    }
+  },
+  "plugins": {
+    "cube-cli": {
+      "id": "cube-cli",
+      "name": "CubeSandbox CLI",
+      "description": "CubeSandbox 控制面遥控器：创建、管理沙箱生命周期、端口与文件操作",
+      "version": "0.1.0",
+      "command": "cube",
+      "author": "otaku-say",
+      "tags": ["sandbox", "cloud", "cube-cli", "remote-control"],
+      "upstream": {
+        "repo": "otaku-say/sandbox-cli",
+        "tag": "latest",
+        "artifact_template": "cube-cli-{target}{ext}",
+        "binary_name": "cube-cli{ext}"
+      }
+    },
+    "aiod-cli": {
+      "id": "aiod-cli",
+      "name": "Aiod CLI",
+      "description": "CubeSandbox 沙箱内 aiod v2 API 遥控器：进程执行、文件管理、浏览器与 MCP",
+      "version": "0.1.0",
+      "command": "aiod",
+      "author": "otaku-say",
+      "tags": ["sandbox", "aiod", "exec", "files", "browser", "mcp"],
+      "upstream": {
+        "repo": "otaku-say/sandbox-cli",
+        "tag": "latest",
+        "artifact_template": "aiod-cli-{target}{ext}",
+        "binary_name": "aiod-cli{ext}",
+        "supported_platforms": ["macos-arm64", "macos-x64", "linux-x64", "linux-arm64"]
+      }
+    }
+  }
+}

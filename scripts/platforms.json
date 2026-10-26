@@ -1,0 +1,54 @@
+{
+  "upstream_repo": "otaku-say/sandbox-cli",
+  "upstream_tag": "latest",
+  "platforms": {
+    "macos-arm64": {
+      "target": "aarch64-macos",
+      "cube_artifact": "cube-cli-aarch64-macos",
+      "aiod_artifact": "aiod-cli-aarch64-macos",
+      "bin_name": "cube-cli",
+      "aiod_name": "aiod-cli",
+      "ext": ""
+    },
+    "macos-x64": {
+      "target": "x86_64-macos",
+      "cube_artifact": "cube-cli-x86_64-macos",
+      "aiod_artifact": "aiod-cli-x86_64-macos",
+      "bin_name": "cube-cli",
+      "aiod_name": "aiod-cli",
+      "ext": ""
+    },
+    "win-x64": {
+      "target": "x86_64-windows-gnu",
+      "cube_artifact": "cube-cli-x86_64-windows-gnu.exe",
+      "aiod_artifact": null,
+      "bin_name": "cube-cli.exe",
+      "aiod_name": null,
+      "ext": ".exe"
+    },
+    "win-arm64": {
+      "target": "aarch64-windows-gnu",
+      "cube_artifact": "cube-cli-aarch64-windows-gnu.exe",
+      "aiod_artifact": null,
+      "bin_name": "cube-cli.exe",
+      "aiod_name": null,
+      "ext": ".exe"
+    },
+    "linux-x64": {
+      "target": "x86_64-linux-musl",
+      "cube_artifact": "cube-cli-x86_64-linux-musl",
+      "aiod_artifact": "aiod-cli-x86_64-linux-musl",
+      "bin_name": "cube-cli",
+      "aiod_name": "aiod-cli",
+      "ext": ""
+    },
+    "linux-arm64": {
+      "target": "aarch64-linux-musl",
+      "cube_artifact": "cube-cli-aarch64-linux-musl",
+      "aiod_artifact": "aiod-cli-aarch64-linux-musl",
+      "bin_name": "cube-cli",
+      "aiod_name": "aiod-cli",
+      "ext": ""
+    }
+  }
+}
