@@ -1,0 +1,40 @@
+{
+  "name": "Cube CLI",
+  "description": "CubeSandbox 控制面遥控器：管理沙箱生命周期、端口与文件。",
+  "whenToUse": "需要创建、列出、检查、暂停、恢复、快照、克隆或删除 CubeSandbox，或排查控制面连接问题时。",
+  "tools": {
+    "cube_version": {
+      "description": "查看 Cube CLI 版本与平台信息；返回 { stdout, stderr, exitCode }。"
+    },
+    "cube_health": {
+      "description": "检查 CubeSandbox 控制面健康状态；返回 { stdout, stderr, exitCode }。"
+    },
+    "cube_run": {
+      "description": "执行任意 Cube CLI 子命令（new、ls、rm、exec、code、info、ports 等）；返回 { stdout, stderr, exitCode }。",
+      "parameters": {
+        "/properties/cmd": { "description": "子命令名称，如 new、ls、rm、exec、code、info。" },
+        "/properties/args": { "description": "传给子命令的参数，如 [\"--need=code\"] 或 [\"sid\", \"uname -a\"]。" }
+      }
+    },
+    "cube_submit": {
+      "description": "异步提交长任务并立即返回；返回 { taskId, cmd, status, message }。",
+      "parameters": {
+        "/properties/cmd": { "description": "要异步执行的子命令。" },
+        "/properties/args": { "description": "传给子命令的参数。" }
+      }
+    },
+    "cube_log": {
+      "description": "读取 cube_submit 提交任务的日志；返回 { taskId, status, completed, exitCode, logs, nextOffset, totalLines }。",
+      "parameters": {
+        "/properties/taskId": { "description": "cube_submit 返回的任务 ID。" },
+        "/properties/offset": { "description": "从第几行开始读取，缺省从头。" }
+      }
+    },
+    "cube_kill": {
+      "description": "终止运行中的后台任务；返回 { taskId, killed }。",
+      "parameters": {
+        "/properties/taskId": { "description": "要终止的任务 ID。" }
+      }
+    }
+  }
+}

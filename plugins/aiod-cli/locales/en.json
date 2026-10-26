@@ -1,0 +1,45 @@
+{
+  "name": "Aiod CLI",
+  "description": "Remote control for the aiod v2 API inside a CubeSandbox: process execution, file management, browser and MCP.",
+  "whenToUse": "Run commands, manage files, drive the browser, execute code or start an MCP server inside a CubeSandbox.",
+  "tools": {
+    "aiod_version": {
+      "description": "Show aiod-cli version and platform; returns { stdout, stderr, exitCode }."
+    },
+    "aiod_health": {
+      "description": "Check the in-sandbox aiod service health; returns { stdout, stderr, exitCode }.",
+      "parameters": {
+        "/properties/base": { "description": "Sandbox gateway URL; defaults to SANDBOX_BASE from settings." }
+      }
+    },
+    "aiod_run": {
+      "description": "Run an aiod-cli command (exec, files, pty, browser, misc...); returns { stdout, stderr, exitCode }.",
+      "parameters": {
+        "/properties/cmd": { "description": "Subcommand name, e.g. exec, ls, cat, write, upload, download, browser." },
+        "/properties/args": { "description": "Arguments for the subcommand." },
+        "/properties/base": { "description": "Gateway URL of a specific sandbox instance." }
+      }
+    },
+    "aiod_submit": {
+      "description": "Submit a long-running sandbox task asynchronously; returns { taskId, cmd, status, message }.",
+      "parameters": {
+        "/properties/cmd": { "description": "Subcommand to run asynchronously." },
+        "/properties/args": { "description": "Arguments for the subcommand." },
+        "/properties/base": { "description": "Sandbox gateway URL." }
+      }
+    },
+    "aiod_log": {
+      "description": "Read logs of a task submitted by aiod_submit; returns { taskId, status, completed, exitCode, logs, nextOffset, totalLines }.",
+      "parameters": {
+        "/properties/taskId": { "description": "Task ID returned by aiod_submit." },
+        "/properties/offset": { "description": "Line index to start reading from; defaults to the beginning." }
+      }
+    },
+    "aiod_kill": {
+      "description": "Terminate a running async sandbox task; returns { taskId, killed }.",
+      "parameters": {
+        "/properties/taskId": { "description": "Task ID to terminate." }
+      }
+    }
+  }
+}

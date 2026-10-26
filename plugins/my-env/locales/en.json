@@ -1,0 +1,34 @@
+{
+  "name": "My Env",
+  "description": "Local store for environment variables and small secrets, with search and paging. Values live in plaintext in this plugin's own /kv store, not in the host credential vault.",
+  "whenToUse": "Look up, add, update or remove an environment variable before injecting it into a cloud sandbox or a local command.",
+  "tools": {
+    "env_list": {
+      "description": "List stored variables with masked values, memo and updatedAt; returns { total, items }. Sensitive entries are always fully masked here.",
+      "parameters": {
+        "/properties/query": { "description": "Optional keyword matched against key names or memos." }
+      }
+    },
+    "env_get": {
+      "description": "Return one variable's plaintext value; returns { key, value, memo, sensitive, updatedAt }. Call only when a command really needs the value, and never repeat it back into chat.",
+      "parameters": {
+        "/properties/key": { "description": "Variable key name, for example GITHUB_TOKEN." }
+      }
+    },
+    "env_set": {
+      "description": "Create or update one variable; returns { key, message, maskedValue, sensitive }.",
+      "parameters": {
+        "/properties/key": { "description": "Variable key name; letters, digits and underscores only." },
+        "/properties/value": { "description": "Value to store." },
+        "/properties/memo": { "description": "Short note describing what this variable is for." },
+        "/properties/sensitive": { "description": "Mark as sensitive so the list shows a full mask. Defaults to the existing flag, or true for a new key." }
+      }
+    },
+    "env_delete": {
+      "description": "Delete one variable; returns { key, deleted }.",
+      "parameters": {
+        "/properties/key": { "description": "Key name of the variable to delete." }
+      }
+    }
+  }
+}

@@ -1,0 +1,40 @@
+{
+  "name": "Cube CLI",
+  "description": "Remote control for the CubeSandbox control plane: sandbox lifecycle, ports and files.",
+  "whenToUse": "Create, list, inspect, pause, resume, snapshot, clone or delete a CubeSandbox, or debug control-plane connectivity.",
+  "tools": {
+    "cube_version": {
+      "description": "Show Cube CLI version and platform; returns { stdout, stderr, exitCode }."
+    },
+    "cube_health": {
+      "description": "Check CubeSandbox control-plane health; returns { stdout, stderr, exitCode }."
+    },
+    "cube_run": {
+      "description": "Run any Cube CLI subcommand (new, ls, rm, exec, code, info, ports...); returns { stdout, stderr, exitCode }.",
+      "parameters": {
+        "/properties/cmd": { "description": "Subcommand name, e.g. new, ls, rm, exec, code, info." },
+        "/properties/args": { "description": "Arguments for the subcommand, e.g. [\"--need=code\"] or [\"sid\", \"uname -a\"]." }
+      }
+    },
+    "cube_submit": {
+      "description": "Submit a long-running task asynchronously and return immediately; returns { taskId, cmd, status, message }.",
+      "parameters": {
+        "/properties/cmd": { "description": "Subcommand to run asynchronously." },
+        "/properties/args": { "description": "Arguments for the subcommand." }
+      }
+    },
+    "cube_log": {
+      "description": "Read logs of a task submitted by cube_submit; returns { taskId, status, completed, exitCode, logs, nextOffset, totalLines }.",
+      "parameters": {
+        "/properties/taskId": { "description": "Task ID returned by cube_submit." },
+        "/properties/offset": { "description": "Line index to start reading from; defaults to the beginning." }
+      }
+    },
+    "cube_kill": {
+      "description": "Terminate a running background task; returns { taskId, killed }.",
+      "parameters": {
+        "/properties/taskId": { "description": "Task ID to terminate." }
+      }
+    }
+  }
+}

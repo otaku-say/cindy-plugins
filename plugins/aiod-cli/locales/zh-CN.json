@@ -1,0 +1,45 @@
+{
+  "name": "Aiod CLI",
+  "description": "CubeSandbox 沙箱内 aiod v2 API 遥控器：进程执行、文件管理、浏览器与 MCP。",
+  "whenToUse": "需要深入 CubeSandbox 沙箱内执行命令、管理文件、遥控浏览器、执行代码或启动 MCP Server 时。",
+  "tools": {
+    "aiod_version": {
+      "description": "查看 aiod-cli 版本与平台信息；返回 { stdout, stderr, exitCode }。"
+    },
+    "aiod_health": {
+      "description": "检查沙箱内 aiod 服务健康与连通性；返回 { stdout, stderr, exitCode }。",
+      "parameters": {
+        "/properties/base": { "description": "沙箱网关地址；不传则用设置中的 SANDBOX_BASE。" }
+      }
+    },
+    "aiod_run": {
+      "description": "执行 aiod-cli 命令（exec、files、pty、browser、misc 等）；返回 { stdout, stderr, exitCode }。",
+      "parameters": {
+        "/properties/cmd": { "description": "子命令名称，如 exec、ls、cat、write、upload、download、browser。" },
+        "/properties/args": { "description": "传给子命令的参数。" },
+        "/properties/base": { "description": "指定沙箱实例的网关地址。" }
+      }
+    },
+    "aiod_submit": {
+      "description": "异步提交沙箱内长任务；返回 { taskId, cmd, status, message }。",
+      "parameters": {
+        "/properties/cmd": { "description": "要异步执行的子命令。" },
+        "/properties/args": { "description": "传给子命令的参数。" },
+        "/properties/base": { "description": "沙箱网关地址。" }
+      }
+    },
+    "aiod_log": {
+      "description": "读取 aiod_submit 提交任务的日志；返回 { taskId, status, completed, exitCode, logs, nextOffset, totalLines }。",
+      "parameters": {
+        "/properties/taskId": { "description": "aiod_submit 返回的任务 ID。" },
+        "/properties/offset": { "description": "从第几行开始读取，缺省从头。" }
+      }
+    },
+    "aiod_kill": {
+      "description": "终止运行中的沙箱异步任务；返回 { taskId, killed }。",
+      "parameters": {
+        "/properties/taskId": { "description": "要终止的任务 ID。" }
+      }
+    }
+  }
+}

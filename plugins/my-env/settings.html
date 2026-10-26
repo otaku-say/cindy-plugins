@@ -249,6 +249,31 @@
     }
 
     /* 操作图标区域（横向紧凑） */
+    .sens-badge {
+      font-size: 10px;
+      line-height: 1;
+      padding: 3px 6px;
+      border-radius: 999px;
+      border: 1px solid var(--pill-border);
+      background: var(--pill-bg);
+      color: var(--fg-muted);
+      flex-shrink: 0;
+    }
+    .check-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin: 0;
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--fg);
+    }
+    .check-row input[type="checkbox"] {
+      width: 14px;
+      height: 14px;
+      margin: 0;
+      flex-shrink: 0;
+    }
     .env-actions {
       display: inline-flex;
       align-items: center;
@@ -301,7 +326,7 @@
 </head>
 <body>
   <h2>全局环境变量与凭据中枢 (My Env)</h2>
-  <div class="subtitle">图形化管理沙箱与本地任务的密钥、环境变量与配置。数据安全保存在 Cindy 本地存储中。</div>
+  <div class="subtitle">键值以明文存在本机插件存储（/kv，非主机凭证保险库），Agent 可按需读取：请勿存放生产级高价值凭据；GitHub 等服务优先用支持主机托管登入的官方插件。</div>
 
   <div id="toast" class="toast"></div>
 
@@ -326,6 +351,12 @@
       <div class="full-width">
         <label for="envMemo">备注说明 (Memo)</label>
         <textarea id="envMemo" rows="2" placeholder="例如: 个人 GitHub 账户 PAT，含 repo 和 workflow 权限" autocomplete="off"></textarea>
+      </div>
+      <div class="full-width">
+        <label class="check-row" for="envSensitive">
+          <input type="checkbox" id="envSensitive" checked />
+          <span>敏感（列表全掩码，仅供单键读取）</span>
+        </label>
       </div>
     </div>
     <div style="display: flex; justify-content: flex-end; gap: 8px;">

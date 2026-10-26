@@ -2,9 +2,9 @@
   "schemaVersion": 3,
   "id": "aiod-cli",
   "name": "Aiod CLI",
-  "description": "CubeSandbox 沙箱内 aiod v2 API 遥控器：进程执行、文件管理、浏览器与 MCP",
-  "whenToUse": "需要深入 CubeSandbox 沙箱内执行命令、管理文件、遥控浏览器、执行代码或启动 MCP Server 时",
-  "version": "0.1.4",
+  "description": "Remote control for the aiod v2 API inside a CubeSandbox: process execution, file management, browser and MCP.",
+  "whenToUse": "Run commands, manage files, drive the browser, execute code or start an MCP server inside a CubeSandbox.",
+  "version": "0.1.5",
   "minCindyVersion": "3.0.0",
   "entry": "main.js",
   "command": "aiod",
@@ -31,7 +31,7 @@
   "tools": [
     {
       "name": "aiod_version",
-      "description": "查看 aiod-cli 版本号与运行平台信息",
+      "description": "Show aiod-cli version and platform; returns { stdout, stderr, exitCode }.",
       "parameters": {
         "type": "object",
         "properties": {}
@@ -39,75 +39,110 @@
     },
     {
       "name": "aiod_health",
-      "description": "检查当前配置的沙箱内 aiod 服务的健康与连通状态",
+      "description": "Check the in-sandbox aiod service health; returns { stdout, stderr, exitCode }.",
       "parameters": {
         "type": "object",
         "properties": {
           "base": {
             "type": "string",
-            "description": "沙箱网关地址（可选，如不传则使用默认配置中的 SANDBOX_BASE）"
+            "description": "Sandbox gateway URL; defaults to SANDBOX_BASE from settings."
           }
         }
       }
     },
     {
       "name": "aiod_run",
-      "description": "执行 aiod-cli 命令（支持 exec, files, pty, browser, misc 等沙箱内部操作）",
+      "description": "Run an aiod-cli command (exec, files, pty, browser, misc...); returns { stdout, stderr, exitCode }.",
       "parameters": {
         "type": "object",
         "properties": {
           "cmd": {
             "type": "string",
-            "description": "子命令名称（如 exec, ls, cat, write, upload, download, browser 等）"
+            "description": "Subcommand name, e.g. exec, ls, cat, write, upload, download, browser."
           },
           "args": {
             "type": "array",
-            "items": { "type": "string" },
-            "description": "传递给子命令的参数列表"
+            "items": {
+              "type": "string"
+            },
+            "description": "Arguments for the subcommand."
           },
           "base": {
             "type": "string",
-            "description": "针对指定沙箱实例的网关地址（可选）"
+            "description": "Gateway URL of a specific sandbox instance."
           }
         },
-        "required": ["cmd"]
+        "required": [
+          "cmd"
+        ]
       }
     },
     {
       "name": "aiod_submit",
-      "description": "异步提交沙箱内的长任务，立即返回 taskId",
+      "description": "Submit a long-running sandbox task asynchronously; returns { taskId, cmd, status, message }.",
       "parameters": {
         "type": "object",
         "properties": {
-          "cmd": { "type": "string", "description": "要异步执行的子命令" },
-          "args": { "type": "array", "items": { "type": "string" }, "description": "参数列表" },
-          "base": { "type": "string", "description": "沙箱网关地址（可选）" }
+          "cmd": {
+            "type": "string",
+            "description": "Subcommand to run asynchronously."
+          },
+          "args": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Arguments for the subcommand."
+          },
+          "base": {
+            "type": "string",
+            "description": "Sandbox gateway URL."
+          }
         },
-        "required": ["cmd"]
+        "required": [
+          "cmd"
+        ]
       }
     },
     {
       "name": "aiod_log",
-      "description": "获取由 aiod_submit 提交的后台任务输出日志",
+      "description": "Read logs of a task submitted by aiod_submit; returns { taskId, status, completed, exitCode, logs, nextOffset, totalLines }.",
       "parameters": {
         "type": "object",
         "properties": {
-          "taskId": { "type": "string", "description": "任务 ID" },
-          "offset": { "type": "integer", "description": "起始行/偏移" }
+          "taskId": {
+            "type": "string",
+            "description": "Task ID returned by aiod_submit."
+          },
+          "offset": {
+            "type": "integer",
+            "description": "Line index to start reading from; defaults to the beginning."
+          }
         },
-        "required": ["taskId"]
+        "required": [
+          "taskId"
+        ]
       }
     },
     {
       "name": "aiod_kill",
-      "description": "终止正在运行的沙箱内异步任务",
+      "description": "Terminate a running async sandbox task; returns { taskId, killed }.",
       "parameters": {
         "type": "object",
         "properties": {
-          "taskId": { "type": "string", "description": "任务 ID" }
+          "taskId": {
+            "type": "string",
+            "description": "Task ID to terminate."
+          }
         },
-        "required": ["taskId"]
+        "required": [
+          "taskId"
+        ]
       }
     }
-  ]
+  ],
+  "locales": {
+    "en": "locales/en.json",
+    "zh-CN": "locales/zh-CN.json"
+  }
 }

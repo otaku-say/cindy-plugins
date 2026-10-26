@@ -91,3 +91,33 @@ test('my-env maskValue logic test', () => {
   assert.equal(maskValue('12345'), '••••••');
   assert.equal(maskValue('ghp_abcdef123456'), 'ghp••••456');
 });
+
+test('locales only reference fields declared in the manifest', () => {
+  const manifest = JSON.parse(fs.readFileSync(path.join(ROOT, 'scripts', 'manifest.json'), 'utf-8'));
+  for (const pid of Object.keys(manifest.plugins)) {
+    const ghost = JSON.parse(fs.readFileSync(path.join(ROOT, 'plugins', pid, 'ghost.json'), 'utf-8'));
+    assert.ok(ghost.locales && ghost.locales.en, `${pid} must declare locales.en`);
+    const toolNames = new Set(ghost.tools.map((t) => t.name));
+    for (const [lang, rel] of Object.entries(ghost.locales)) {
+      const loc = JSON.parse(fs.readFileSync(path.join(ROOT, 'plugins', pid, rel), 'utf-8'));
+      for (const key of Object.keys(loc)) {
+        assert.ok(['name', 'description', 'whenToUse', 'tools'].includes(key), `${pid}/${lang}: unknown key ${key}`);
+      }
+      for (const [toolName, toolLoc] of Object.entries(loc.tools || {})) {
+        assert.ok(toolNames.has(toolName), `${pid}/${lang}: unknown tool ${toolName}`);
+        for (const ptr of Object.keys(toolLoc.parameters || {})) {
+          assert.ok(ptr.startsWith('/properties/'), `${pid}/${lang}/${toolName}: bad pointer ${ptr}`);
+        }
+      }
+    }
+  }
+});
+
+test('my-env keeps no bulk plaintext export and guards reserved keys', () => {
+  const ghost = JSON.parse(fs.readFileSync(path.join(ROOT, 'plugins', 'my-env', 'ghost.json'), 'utf-8'));
+  assert.ok(!ghost.tools.some((t) => t.name === 'env_dump_for_sandbox'), 'bulk export tool must stay removed');
+  const mainJs = fs.readFileSync(path.join(ROOT, 'plugins', 'my-env', 'main.js'), 'utf-8');
+  for (const name of ['__proto__', 'constructor', 'prototype']) {
+    assert.ok(mainJs.includes(name), `main.js must guard reserved key ${name}`);
+  }
+});
