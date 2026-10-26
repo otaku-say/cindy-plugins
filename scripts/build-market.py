@@ -1,23 +1,276 @@
-{\n  \"name\": \"Cindy Plugins Market\",\n  \"owner\": \"otaku-say\",\n  \"repo\": \"cindy-plugins\",\n  \"description\": \"Cindy 自定义插件市场（官方与社区高质量插件，支持全操作系统与架构自动适配）\",\n  \"platforms\": {\n    \"macos-arm64\": {\n      \"os\": \"macos\",\n      \"arch\": \"arm64\",\n      \"target\": \"aarch64-macos\",\n      \"name_label\": \"macOS Apple Silicon (arm64)\",\n      \"ext\": \"\"\n    },\n    \"macos-amd64\": {\n      \"os\": \"macos\",\n      \"arch\": \"amd64\",\n      \"target\": \"x86_64-macos\",\n      \"name_label\": \"macOS Intel (amd64)\",\n      \"ext\": \"\"\n    },\n    \"windows-amd64\": {\n      \"os\": \"windows\",\n      \"arch\": \"amd64\",\n      \"target\": \"x86_64-windows-gnu\",\n      \"name_label\": \"Windows 64-bit (amd64)\",\n      \"ext\": \".exe\"\n    },\n    \"windows-arm64\": {\n      \"os\": \"windows\",\n      \"arch\": \"arm64\",\n      \"target\": \"aarch64-windows-gnu\",\n      \"name_label\": \"Windows ARM64 (arm64)\",\n      \"ext\": \".exe\"\n    },\n    \"linux-amd64\": {\n      \"os\": \"linux\",\n      \"arch\": \"amd64\",\n      \"target\": \"x86_64-linux-musl\",\n      \"name_label\": \"Linux 64-bit (amd64)\",\n      \"ext\": \"\"\n    },\n    \"linux-arm64\": {\n      \"os\": \"linux\",\n      \"arch\": \"arm64\",\n      \"target\": \"aarch64-linux-musl\",\n      \"name_label\": \"Linux ARM64 (arm64)\",\n      \"ext\": \"\"\n    }\n  },\n  \"plugins\": {\n    \"cube-cli\": {\n      \"id\": \"cube-cli\",\n      \"name\": \"Cube CLI\",\n      \"description\": \"CubeSandbox 控制面遥控器：创建、管理沙箱生命周期、端口与文件操作\",\n      \"version\": \"0.1.0\",\n      \"command\": \"cube\",\n      \"author\": \"otaku-say\",\n      \"tags\": [\n        \"sandbox\",\n        \"cloud\",\n        \"cube-cli\",\n        \"remote-control\"\n      ],\n      \"upstream\": {\n        \"repo\": \"otaku-say/sandbox-cli\",\n        \"tag\": \"latest\",\n        \"artifact_template\": \"cube-cli-{target}{ext}\",\n        \"binary_name\": \"cube-cli{ext}\"\n      }\n    },\n    \"aiod-cli\": {\n      \"id\": \"aiod-cli\",\n      \"name\": \"Aiod CLI\",\n      \"description\": \"CubeSandbox 沙箱内 aiod v2 API 遥控器：进程执行、文件管理、浏览器与 MCP\",\n      \"version\": \"0.1.0\",\n      \"command\": \"aiod\",\n      \"author\": \"otaku-say\",\n      \"tags\": [\n        \"sandbox\",\n        \"aiod\",\n        \"exec\",\n        \"files\",\n        \"browser\",\n        \"mcp\"\n      ],\n      \"upstream\": {\n        \"repo\": \"otaku-say/sandbox-cli\",\n        \"tag\": \"latest\",\n        \"artifact_template\": \"aiod-cli-{target}{ext}\",\n        \"binary_name\": \"aiod-cli{ext}\",\n        \"supported_platforms\": [\n          \"macos-arm64\",\n          \"macos-amd64\",\n          \"linux-amd64\",\n          \"linux-arm64\"\n        ]\n      }\n    }\n  }\n}\n", "encoding": "utf-8"}, {"path": "scripts/build-market.py", "content": "#!/usr/bin/env python3\n# -*- coding: utf-8 -*-\n\"\"\"\nscripts/build-market.py —— Cindy 多插件、全平台架构自动构建分发引擎\n严格遵循系统全称 (macos, windows, linux) 与芯片架构全称 (arm64, amd64) 规范：\n  macos-arm64, macos-amd64, windows-amd64, windows-arm64, linux-amd64, linux-arm64\n\"\"\"\n\nimport os\nimport sys\nimport json\nimport shutil\nimport zipfile\nimport urllib.request\nimport hashlib\nfrom pathlib import Path\n\nROOT = Path(__file__).resolve().parent.parent\nMANIFEST_PATH = ROOT / \"scripts\" / \"manifest.json\"\nCACHE_DIR = ROOT / \".cache\" / \"upstream\"\nDIST_DIR = ROOT / \"dist\"\nPLATFORMS_DIST = DIST_DIR / \"platforms\"\nPACKAGES_DIST = DIST_DIR / \"packages\"\n\ndef load_manifest():\n    with open(MANIFEST_PATH, \"r\", encoding=\"utf-8\") as f:\n        return json.load(f)\n\ndef download_file(url, dest_path):\n    dest_path.parent.mkdir(parents=True, exist_ok=True)\n    print(f\"  [HTTP] 下载: {url} -> {dest_path.name}\")\n    req = urllib.request.Request(url, headers={\"User-Agent\": \"cindy-market-engine\"})\n    with urllib.request.urlopen(req) as resp, open(dest_path, \"wb\") as out:\n        shutil.copyfileobj(resp, out)\n\ndef get_file_sha256(file_path):\n    h = hashlib.sha256()\n    with open(file_path, \"rb\") as f:\n        while chunk := f.read(65536):\n            h.update(chunk)\n    return h.hexdigest()\n\ndef sync_upstream_for_plugin(plugin_id, plugin_meta, platforms):\n    upstream = plugin_meta.get(\"upstream\")\n    if not upstream:\n        return {}\n\n    repo = upstream[\"repo\"]\n    tag = upstream[\"tag\"]\n    base_url = f\"https://github.com/{repo}/releases/download/{tag}\"\n    plugin_cache = CACHE_DIR / plugin_id\n    plugin_cache.mkdir(parents=True, exist_ok=True)\n\n    sums_file = plugin_cache / \"SHA256SUMS\"\n    try:\n        download_file(f\"{base_url}/SHA256SUMS\", sums_file)\n    except Exception as e:\n        print(f\"  [WARN] 无法获取 SHA256SUMS: {e}\")\n\n    checksums = {}\n    if sums_file.exists():\n        with open(sums_file, \"r\", encoding=\"utf-8\") as f:\n            for line in f:\n                parts = line.strip().split()\n                if len(parts) >= 2:\n                    checksums[parts[1]] = parts[0]\n\n    supported = upstream.get(\"supported_platforms\")\n    artifact_tmpl = upstream[\"artifact_template\"]\n    downloaded = {}\n\n    for plat_name, pinfo in platforms.items():\n        if supported and plat_name not in supported:\n            continue\n\n        target = pinfo[\"target\"]\n        ext = pinfo[\"ext\"]\n        artifact_name = artifact_tmpl.format(target=target, ext=ext)\n        dest_file = plugin_cache / artifact_name\n\n        if not dest_file.exists():\n            download_url = f\"{base_url}/{artifact_name}\"\n            download_file(download_url, dest_file)\n\n        actual_sha = get_file_sha256(dest_file)\n        if artifact_name in checksums:\n            expected_sha = checksums[artifact_name]\n            if actual_sha != expected_sha:\n                raise ValueError(f\"校验失败: {artifact_name} (期望: {expected_sha}, 实际: {actual_sha})\")\n            print(f\"  [SHA256] 校验通过: {artifact_name}\")\n        else:\n            print(f\"  [SHA256] 记录指纹: {artifact_name} ({actual_sha[:12]})\")\n\n        downloaded[plat_name] = dest_file\n\n    return downloaded\n\ndef zip_directory(src_dir, dest_zip_path):\n    dest_zip_path.parent.mkdir(parents=True, exist_ok=True)\n    with zipfile.ZipFile(dest_zip_path, \"w\", zipfile.ZIP_DEFLATED) as zf:\n        for root, dirs, files in os.walk(src_dir):\n            dirs[:] = [d for d in dirs if not d.startswith(\".\") and d != \"node_modules\"]\n            for file in files:\n                if file.startswith(\".\") or file.endswith(\".cindy\") or file.endswith(\".zip\"):\n                    continue\n                full_path = Path(root) / file\n                rel_path = full_path.relative_to(src_dir)\n                zf.write(full_path, arcname=str(rel_path))\n\ndef build_all():\n    manifest = load_manifest()\n    platforms = manifest[\"platforms\"]\n    plugins = manifest[\"plugins\"]\n    owner = manifest[\"owner\"]\n    repo = manifest[\"repo\"]\n\n    print(f\"=== 开始构建 Cindy 插件市场: {manifest['name']} ===\")\n    print(f\"收录插件: {list(plugins.keys())}\")\n    print(f\"支持架构矩阵: {list(platforms.keys())}\\n\")\n\n    artifacts_map = {}\n    for pid, pmeta in plugins.items():\n        print(f\"[*] 检查插件上游产物: {pid} ({pmeta['name']})\")\n        artifacts_map[pid] = sync_upstream_for_plugin(pid, pmeta, platforms)\n\n    PACKAGES_DIST.mkdir(parents=True, exist_ok=True)\n    cindy_packages_meta = {}\n\n    for plat_name, pinfo in platforms.items():\n        plat_dir = PLATFORMS_DIST / plat_name\n        if plat_dir.exists():\n            shutil.rmtree(plat_dir)\n        plat_dir.mkdir(parents=True, exist_ok=True)\n\n        for pid, pmeta in plugins.items():\n            if plat_name not in artifacts_map[pid]:\n                continue\n\n            src_plugin_dir = ROOT / \"plugins\" / pid\n            dest_plugin_dir = plat_dir / \"plugins\" / pid\n            shutil.copytree(src_plugin_dir, dest_plugin_dir)\n\n            # 单平台瘦身包：将对应架构二进制放在单个 bin/ 根部，清理其余架构目录\n            bin_dir = dest_plugin_dir / \"bin\"\n            if bin_dir.exists():\n                shutil.rmtree(bin_dir)\n            bin_dir.mkdir(parents=True, exist_ok=True)\n\n            src_bin = artifacts_map[pid][plat_name]\n            bin_name = pmeta[\"upstream\"][\"binary_name\"].format(target=pinfo[\"target\"], ext=pinfo[\"ext\"])\n            dest_bin = bin_dir / bin_name\n            shutil.copy2(src_bin, dest_bin)\n            if not bin_name.endswith(\".exe\"):\n                dest_bin.chmod(0o755)\n\n            # 生成标准的 <pid>-<version>-<os>-<arch>.cindy\n            version = pmeta[\"version\"]\n            cindy_filename = f\"{pid}-{version}-{plat_name}.cindy\"\n            cindy_path = PACKAGES_DIST / cindy_filename\n            zip_directory(dest_plugin_dir, cindy_path)\n\n            pkg_sha = get_file_sha256(cindy_path)\n            pkg_size = cindy_path.stat().st_size\n            release_url = f\"https://github.com/{owner}/{repo}/releases/download/v{version}/{cindy_filename}\"\n\n            cindy_packages_meta[(pid, plat_name)] = {\n                \"sha256\": pkg_sha,\n                \"size\": pkg_size,\n                \"filename\": cindy_filename,\n                \"download_url\": release_url\n            }\n\n    # 生成全局市场清单\n    mkt_plugins = []\n    for pid, pmeta in plugins.items():\n        ghost_path = ROOT / \"plugins\" / pid / \"ghost.json\"\n        ghost_data = {}\n        if ghost_path.exists():\n            with open(ghost_path, \"r\", encoding=\"utf-8\") as f:\n                ghost_data = json.load(f)\n\n        item = {\n            \"id\": pid,\n            \"name\": pmeta[\"name\"],\n            \"description\": pmeta[\"description\"],\n            \"version\": pmeta[\"version\"],\n            \"command\": pmeta.get(\"command\", ghost_data.get(\"command\")),\n            \"author\": pmeta.get(\"author\", \"Cindy Community\"),\n            \"source\": f\"plugins/{pid}\",\n            \"icon\": f\"plugins/{pid}/assets/icon.png\",\n            \"whenToUse\": ghost_data.get(\"whenToUse\", \"\"),\n            \"tags\": pmeta.get(\"tags\", []),\n            \"platforms\": {}\n        }\n\n        for plat_name, pinfo in platforms.items():\n            if (pid, plat_name) in cindy_packages_meta:\n                meta = cindy_packages_meta[(pid, plat_name)]\n                # 标准规范键：<os>-<arch> (例如 macos-arm64, macos-amd64, windows-amd64, linux-amd64 等)\n                item[\"platforms\"][plat_name] = {\n                    \"platform\": plat_name,\n                    \"os\": pinfo[\"os\"],\n                    \"arch\": pinfo[\"arch\"],\n                    \"target\": pinfo[\"target\"],\n                    \"download_url\": meta[\"download_url\"],\n                    \"sha256\": meta[\"sha256\"],\n                    \"size\": meta[\"size\"]\n                }\n\n        mkt_plugins.append(item)\n\n    final_mkt = {\n        \"$schema\": \"https://cindy.app/schemas/marketplace.v1.json\",\n        \"name\": manifest[\"name\"],\n        \"description\": manifest[\"description\"],\n        \"owner\": owner,\n        \"repo\": f\"https://github.com/{owner}/{repo}\",\n        \"platforms\": manifest[\"platforms\"],\n        \"plugins\": mkt_plugins\n    }\n\n    mkt_out = ROOT / \".agents\" / \"plugins\" / \"marketplace.json\"\n    mkt_out.parent.mkdir(parents=True, exist_ok=True)\n    with open(mkt_out, \"w\", encoding=\"utf-8\") as f:\n        json.dump(final_mkt, f, ensure_ascii=False, indent=2)\n\n    print(\"\\n[+] 市场清单已生成: .agents/plugins/marketplace.json\")\n    print(f\"[+] 各平台 .cindy 安装包已生成 (共 {len(cindy_packages_meta)} 项):\\n\")\n    for (pid, plat_name), meta in cindy_packages_meta.items():\n        kb = meta[\"size\"] / 1024\n        print(f\"  - {meta['filename']:40} | {kb:6.1f} KB | SHA256: {meta['sha256'][:12]}...\")\n\ndef push_all_branches(manifest):\n    platforms = manifest[\"platforms\"]\n    token = os.environ.get(\"GITHUB_TOKEN\")\n    owner = manifest[\"owner\"]\n    repo = manifest[\"repo\"]\n    if token:\n        remote_url = f\"https://x-access-token:{token}@github.com/{owner}/{repo}.git\"\n    else:\n        remote_url = \"origin\"\n\n    import subprocess\n\n    # 1. 自动删除旧规范遗留分支\n    old_branches = [\"plat/linux-x64\", \"plat/macos-x64\", \"plat/win-x64\", \"plat/win-arm64\"]\n    print(\"=== 清理旧命名遗留分支 ===\")\n    for old_b in old_branches:\n        res = subprocess.run([\"git\", \"push\", remote_url, \"--delete\", old_b], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)\n        if res.returncode == 0:\n            print(f\"  [DELETED] 已清理旧分支: {old_b}\")\n\n    # 2. 推送全新的标准规范分支\n    print(\"=== 开始更新各平台标准轻量分支 (plat/<os>-<arch>) ===")
-for plat_name in platforms.keys():
-    plat_dir = PLATFORMS_DIST / plat_name
-    if not plat_dir.exists():
-        continue
-    print(f"[*] 推送标准平台分支: plat/{plat_name} ...")
-    git_dir = plat_dir / ".git"
-    if git_dir.exists():
-        shutil.rmtree(git_dir)
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+scripts/build-market.py —— Cindy 多插件、全平台架构自动构建分发引擎
+严格遵循系统全称 (macos, windows, linux) 与芯片架构全称 (arm64, amd64) 规范：
+  macos-arm64, macos-amd64, windows-amd64, windows-arm64, linux-amd64, linux-arm64
+"""
 
-    subprocess.run(["git", "init"], cwd=plat_dir, check=True, stdout=subprocess.DEVNULL)
-    subprocess.run(["git", "config", "user.name", "github-actions[bot]"], cwd=plat_dir, check=True)
-    subprocess.run(["git", "config", "user.email", "github-actions[bot]@users.noreply.github.com"], cwd=plat_dir, check=True)
-    subprocess.run(["git", "add", "-A"], cwd=plat_dir, check=True)
-    subprocess.run(["git", "commit", "-m", f"chore(release): auto-assembled {plat_name} packages"], cwd=plat_dir, check=True, stdout=subprocess.DEVNULL)
-    res = subprocess.run(["git", "push", remote_url, f"HEAD:refs/heads/plat/{plat_name}", "--force"], cwd=plat_dir)
-    if res.returncode == 0:
-        print(f"  [OK] plat/{plat_name} 推送成功！")
+import os
+import sys
+import json
+import shutil
+import zipfile
+import urllib.request
+import hashlib
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent
+MANIFEST_PATH = ROOT / "scripts" / "manifest.json"
+CACHE_DIR = ROOT / ".cache" / "upstream"
+DIST_DIR = ROOT / "dist"
+PLATFORMS_DIST = DIST_DIR / "platforms"
+PACKAGES_DIST = DIST_DIR / "packages"
+
+def load_manifest():
+    with open(MANIFEST_PATH, "r", encoding="utf-8") as f:
+        return json.load(f)
+
+def download_file(url, dest_path):
+    dest_path.parent.mkdir(parents=True, exist_ok=True)
+    print(f"  [HTTP] 下载: {url} -> {dest_path.name}")
+    req = urllib.request.Request(url, headers={"User-Agent": "cindy-market-engine"})
+    with urllib.request.urlopen(req) as resp, open(dest_path, "wb") as out:
+        shutil.copyfileobj(resp, out)
+
+def get_file_sha256(file_path):
+    h = hashlib.sha256()
+    with open(file_path, "rb") as f:
+        while chunk := f.read(65536):
+            h.update(chunk)
+    return h.hexdigest()
+
+def sync_upstream_for_plugin(plugin_id, plugin_meta, platforms):
+    upstream = plugin_meta.get("upstream")
+    if not upstream:
+        return {}
+
+    repo = upstream["repo"]
+    tag = upstream["tag"]
+    base_url = f"https://github.com/{repo}/releases/download/{tag}"
+    plugin_cache = CACHE_DIR / plugin_id
+    plugin_cache.mkdir(parents=True, exist_ok=True)
+
+    sums_file = plugin_cache / "SHA256SUMS"
+    try:
+        download_file(f"{base_url}/SHA256SUMS", sums_file)
+    except Exception as e:
+        print(f"  [WARN] 无法获取 SHA256SUMS: {e}")
+
+    checksums = {}
+    if sums_file.exists():
+        with open(sums_file, "r", encoding="utf-8") as f:
+            for line in f:
+                parts = line.strip().split()
+                if len(parts) >= 2:
+                    checksums[parts[1]] = parts[0]
+
+    supported = upstream.get("supported_platforms")
+    artifact_tmpl = upstream["artifact_template"]
+    downloaded = {}
+
+    for plat_name, pinfo in platforms.items():
+        if supported and plat_name not in supported:
+            continue
+
+        target = pinfo["target"]
+        ext = pinfo["ext"]
+        artifact_name = artifact_tmpl.format(target=target, ext=ext)
+        dest_file = plugin_cache / artifact_name
+
+        if not dest_file.exists():
+            download_url = f"{base_url}/{artifact_name}"
+            download_file(download_url, dest_file)
+
+        actual_sha = get_file_sha256(dest_file)
+        if artifact_name in checksums:
+            expected_sha = checksums[artifact_name]
+            if actual_sha != expected_sha:
+                raise ValueError(f"校验失败: {artifact_name} (期望: {expected_sha}, 实际: {actual_sha})")
+            print(f"  [SHA256] 校验通过: {artifact_name}")
+        else:
+            print(f"  [SHA256] 记录指纹: {artifact_name} ({actual_sha[:12]})")
+
+        downloaded[plat_name] = dest_file
+
+    return downloaded
+
+def zip_directory(src_dir, dest_zip_path):
+    dest_zip_path.parent.mkdir(parents=True, exist_ok=True)
+    with zipfile.ZipFile(dest_zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
+        for root, dirs, files in os.walk(src_dir):
+            dirs[:] = [d for d in dirs if not d.startswith(".") and d != "node_modules"]
+            for file in files:
+                if file.startswith(".") or file.endswith(".cindy") or file.endswith(".zip"):
+                    continue
+                full_path = Path(root) / file
+                rel_path = full_path.relative_to(src_dir)
+                zf.write(full_path, arcname=str(rel_path))
+
+def build_all():
+    manifest = load_manifest()
+    platforms = manifest["platforms"]
+    plugins = manifest["plugins"]
+    owner = manifest["owner"]
+    repo = manifest["repo"]
+
+    print(f"=== 开始构建 Cindy 插件市场: {manifest['name']} ===")
+    print(f"收录插件: {list(plugins.keys())}")
+    print(f"支持架构矩阵: {list(platforms.keys())}\n")
+
+    artifacts_map = {}
+    for pid, pmeta in plugins.items():
+        print(f"[*] 检查插件上游产物: {pid} ({pmeta['name']})")
+        artifacts_map[pid] = sync_upstream_for_plugin(pid, pmeta, platforms)
+
+    PACKAGES_DIST.mkdir(parents=True, exist_ok=True)
+    cindy_packages_meta = {}
+
+    for plat_name, pinfo in platforms.items():
+        plat_dir = PLATFORMS_DIST / plat_name
+        if plat_dir.exists():
+            shutil.rmtree(plat_dir)
+        plat_dir.mkdir(parents=True, exist_ok=True)
+
+        for pid, pmeta in plugins.items():
+            if plat_name not in artifacts_map[pid]:
+                continue
+
+            src_plugin_dir = ROOT / "plugins" / pid
+            dest_plugin_dir = plat_dir / "plugins" / pid
+            shutil.copytree(src_plugin_dir, dest_plugin_dir)
+
+            # 单平台瘦身包：将对应架构二进制放在单个 bin/ 根部，清理其余架构目录
+            bin_dir = dest_plugin_dir / "bin"
+            if bin_dir.exists():
+                shutil.rmtree(bin_dir)
+            bin_dir.mkdir(parents=True, exist_ok=True)
+
+            src_bin = artifacts_map[pid][plat_name]
+            bin_name = pmeta["upstream"]["binary_name"].format(target=pinfo["target"], ext=pinfo["ext"])
+            dest_bin = bin_dir / bin_name
+            shutil.copy2(src_bin, dest_bin)
+            if not bin_name.endswith(".exe"):
+                dest_bin.chmod(0o755)
+
+            # 生成标准的 <pid>-<version>-<os>-<arch>.cindy
+            version = pmeta["version"]
+            cindy_filename = f"{pid}-{version}-{plat_name}.cindy"
+            cindy_path = PACKAGES_DIST / cindy_filename
+            zip_directory(dest_plugin_dir, cindy_path)
+
+            pkg_sha = get_file_sha256(cindy_path)
+            pkg_size = cindy_path.stat().st_size
+            release_url = f"https://github.com/{owner}/{repo}/releases/download/v{version}/{cindy_filename}"
+
+            cindy_packages_meta[(pid, plat_name)] = {
+                "sha256": pkg_sha,
+                "size": pkg_size,
+                "filename": cindy_filename,
+                "download_url": release_url
+            }
+
+    # 生成全局市场清单
+    mkt_plugins = []
+    for pid, pmeta in plugins.items():
+        ghost_path = ROOT / "plugins" / pid / "ghost.json"
+        ghost_data = {}
+        if ghost_path.exists():
+            with open(ghost_path, "r", encoding="utf-8") as f:
+                ghost_data = json.load(f)
+
+        item = {
+            "id": pid,
+            "name": pmeta["name"],
+            "description": pmeta["description"],
+            "version": pmeta["version"],
+            "command": pmeta.get("command", ghost_data.get("command")),
+            "author": pmeta.get("author", "Cindy Community"),
+            "source": f"plugins/{pid}",
+            "icon": f"plugins/{pid}/assets/icon.png",
+            "whenToUse": ghost_data.get("whenToUse", ""),
+            "tags": pmeta.get("tags", []),
+            "platforms": {}
+        }
+
+        for plat_name, pinfo in platforms.items():
+            if (pid, plat_name) in cindy_packages_meta:
+                meta = cindy_packages_meta[(pid, plat_name)]
+                # 标准规范键：<os>-<arch> (例如 macos-arm64, macos-amd64, windows-amd64, linux-amd64 等)
+                item["platforms"][plat_name] = {
+                    "platform": plat_name,
+                    "os": pinfo["os"],
+                    "arch": pinfo["arch"],
+                    "target": pinfo["target"],
+                    "download_url": meta["download_url"],
+                    "sha256": meta["sha256"],
+                    "size": meta["size"]
+                }
+
+        mkt_plugins.append(item)
+
+    final_mkt = {
+        "$schema": "https://cindy.app/schemas/marketplace.v1.json",
+        "name": manifest["name"],
+        "description": manifest["description"],
+        "owner": owner,
+        "repo": f"https://github.com/{owner}/{repo}",
+        "platforms": manifest["platforms"],
+        "plugins": mkt_plugins
+    }
+
+    mkt_out = ROOT / ".agents" / "plugins" / "marketplace.json"
+    mkt_out.parent.mkdir(parents=True, exist_ok=True)
+    with open(mkt_out, "w", encoding="utf-8") as f:
+        json.dump(final_mkt, f, ensure_ascii=False, indent=2)
+
+    print("\n[+] 市场清单已生成: .agents/plugins/marketplace.json")
+    print(f"[+] 各平台 .cindy 安装包已生成 (共 {len(cindy_packages_meta)} 项):\n")
+    for (pid, plat_name), meta in cindy_packages_meta.items():
+        kb = meta["size"] / 1024
+        print(f"  - {meta['filename']:40} | {kb:6.1f} KB | SHA256: {meta['sha256'][:12]}...")
+
+def push_all_branches(manifest):
+    platforms = manifest["platforms"]
+    token = os.environ.get("GITHUB_TOKEN")
+    owner = manifest["owner"]
+    repo = manifest["repo"]
+    if token:
+        remote_url = f"https://x-access-token:{token}@github.com/{owner}/{repo}.git"
     else:
-        print(f"  [FAIL] plat/{plat_name} 推送失败！")
+        remote_url = "origin"
+
+    import subprocess
+
+    # 1. 自动删除旧规范遗留分支
+    old_branches = ["plat/linux-x64", "plat/macos-x64", "plat/win-x64", "plat/win-arm64"]
+    print("=== 清理旧命名遗留分支 ===")
+    for old_b in old_branches:
+        res = subprocess.run(["git", "push", remote_url, "--delete", old_b], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        if res.returncode == 0:
+            print(f"  [DELETED] 已清理旧分支: {old_b}")
+
+    # 2. 推送全新的标准规范分支
+    print("=== 开始更新各平台标准轻量分支 (plat/<os>-<arch>) ===")
+    for plat_name in platforms.keys():
+        plat_dir = PLATFORMS_DIST / plat_name
+        if not plat_dir.exists():
+            continue
+        print(f"[*] 推送标准平台分支: plat/{plat_name} ...")
+        git_dir = plat_dir / ".git"
+        if git_dir.exists():
+            shutil.rmtree(git_dir)
+
+        subprocess.run(["git", "init"], cwd=plat_dir, check=True, stdout=subprocess.DEVNULL)
+        subprocess.run(["git", "config", "user.name", "github-actions[bot]"], cwd=plat_dir, check=True)
+        subprocess.run(["git", "config", "user.email", "github-actions[bot]@users.noreply.github.com"], cwd=plat_dir, check=True)
+        subprocess.run(["git", "add", "-A"], cwd=plat_dir, check=True)
+        subprocess.run(["git", "commit", "-m", f"chore(release): auto-assembled {plat_name} packages"], cwd=plat_dir, check=True, stdout=subprocess.DEVNULL)
+        res = subprocess.run(["git", "push", remote_url, f"HEAD:refs/heads/plat/{plat_name}", "--force"], cwd=plat_dir)
+        if res.returncode == 0:
+            print(f"  [OK] plat/{plat_name} 推送成功！")
+        else:
+            print(f"  [FAIL] plat/{plat_name} 推送失败！")
 
 if __name__ == "__main__":
     if "--push-branches" in sys.argv:
