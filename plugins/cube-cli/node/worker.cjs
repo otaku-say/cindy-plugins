@@ -23,84 +23,58 @@ function getStandardPlatformKey() {
   return `${os}-${arch}`;
 }
 
-function pruneHeterogeneousBinaries(exeName) {
-  try {
-    const binDir = path.resolve(__dirname, '..', 'bin');
-    if (!fs.existsSync(binDir)) return;
-
-    const currentKey = `${process.platform}-${process.arch}`;
-    const standardKey = getStandardPlatformKey();
-    const targetBin = path.join(binDir, exeName);
-
-    // 1. 如果顶层二进制不存在，从匹配当前机器架构的标准/兼容子目录复制提升
-    if (!fs.existsSync(targetBin)) {
-      const candidates = [
-        path.join(binDir, standardKey, exeName),
-        path.join(binDir, currentKey, exeName),
-        path.join(binDir, `${process.platform === 'darwin' ? 'macos' : process.platform}-${process.arch}`, exeName)
-      ];
-      for (const cand of candidates) {
-        if (fs.existsSync(cand)) {
-          fs.copyFileSync(cand, targetBin);
-          try { fs.chmodSync(targetBin, 0o755); } catch (_) {}
-          break;
-        }
-      }
-    }
-
-    // 2. 一旦目标原生二进制就绪，立即自动清除所有异构架构目录，保持目录绝对纯净
-    if (fs.existsSync(targetBin)) {
-      try { fs.chmodSync(targetBin, 0o755); } catch (_) {}
-      const entries = fs.readdirSync(binDir);
-      for (const e of entries) {
-        if (e !== exeName) {
-          const full = path.join(binDir, e);
-          try {
-            fs.rmSync(full, { recursive: true, force: true });
-          } catch (_) {}
-        }
-      }
-    }
-  } catch (err) {
-    log(`Auto-prune notice: ${err.message}`);
-  }
-}
-
 function findBinary() {
   const isWin = process.platform === 'win32';
   const ext = isWin ? '.exe' : '';
   const exeName = `cube-cli${ext}`;
+  const binDir = path.resolve(__dirname, '..', 'bin');
 
-  // 触发自适应提纯与异构架构物理清除
-  pruneHeterogeneousBinaries(exeName);
-
-  const flatBin = path.resolve(__dirname, '..', 'bin', exeName);
+  // 1. 优先查平铺的 bin/<exeName>（单平台构建产物）
+  const flatBin = path.join(binDir, exeName);
   if (fs.existsSync(flatBin)) {
     try { fs.chmodSync(flatBin, 0o755); } catch (_) {}
     return flatBin;
   }
 
+  // 2. 查标准子目录 bin/<os>-<arch>/<exeName>（多架构开发/内嵌目录）
+  const stdKey = getStandardPlatformKey();
+  const stdBin = path.join(binDir, stdKey, exeName);
+  if (fs.existsSync(stdBin)) {
+    try { fs.chmodSync(stdBin, 0o755); } catch (_) {}
+    return stdBin;
+  }
+
+  // 3. 兜底兼容传统架构别名
   const platKey = `${process.platform}-${process.arch}`;
   const candidates = [
-    path.resolve(__dirname, '..', 'bin', platKey, exeName),
-    path.resolve(__dirname, '..', 'bin', `${process.platform === 'darwin' ? 'macos' : process.platform}-${process.arch}`, exeName),
+    path.join(binDir, platKey, exeName),
+    path.join(binDir, `${process.platform === 'darwin' ? 'macos' : process.platform}-${process.arch}`, exeName),
     path.resolve(__dirname, '..', exeName)
   ];
-
   for (const c of candidates) {
     if (fs.existsSync(c)) {
-      try {
-        fs.accessSync(c, fs.constants.X_OK);
-      } catch (_) {
-        try { fs.chmodSync(c, 0o755); } catch (e) {}
-      }
+      try { fs.chmodSync(c, 0o755); } catch (_) {}
       return c;
     }
   }
+
   return exeName;
 }
 
-const tasks = new Map(); // taskId -> { process, logs: [], exitCode: null, completed: false, startTime }
+const tasks = new Map(); // taskId -> taskRecord
+const MAX_TASKS = 50; // 限制后台驻留任务数，避免高负载下内存泄漏
+
+function recordTask(taskId, record) {
+  if (tasks.size >= MAX_TASKS) {
+    for (const [id, t] of tasks) {
+      if (t.completed) {
+        tasks.delete(id);
+        break;
+      }
+    }
+  }
+  tasks.set(taskId, record);
+}
 
 function buildEnv(request) {
   const defaultApiUrl = 'https://cubesandbox-api.4a8a.com';
@@ -128,7 +102,7 @@ readline.createInterface({ input: process.stdin }).on('line', (line) => {
     return;
   }
 
-  const { id, method, params } = request;
+  const { id, method, params = {} } = request;
 
   if (method === 'cube/run' || method === 'cube/health') {
     const bin = findBinary();
@@ -142,13 +116,25 @@ readline.createInterface({ input: process.stdin }).on('line', (line) => {
     const proc = spawn(bin, fullArgs, { env, stdio: ['ignore', 'pipe', 'pipe'] });
     let stdout = '';
     let stderr = '';
+    let stdoutTruncated = false;
+    let stderrTruncated = false;
     const MAX_OUTPUT = 256 * 1024; // 256KB 截断保护
 
     proc.stdout.on('data', (d) => {
-      if (stdout.length < MAX_OUTPUT) stdout += d.toString('utf-8');
+      if (stdout.length < MAX_OUTPUT) {
+        stdout += d.toString('utf-8');
+      } else if (!stdoutTruncated) {
+        stdout += '\n[... stdout truncated at 256KB ...]';
+        stdoutTruncated = true;
+      }
     });
     proc.stderr.on('data', (d) => {
-      if (stderr.length < MAX_OUTPUT) stderr += d.toString('utf-8');
+      if (stderr.length < MAX_OUTPUT) {
+        stderr += d.toString('utf-8');
+      } else if (!stderrTruncated) {
+        stderr += '\n[... stderr truncated at 256KB ...]';
+        stderrTruncated = true;
+      }
     });
 
     proc.on('error', (err) => {
@@ -186,7 +172,7 @@ readline.createInterface({ input: process.stdin }).on('line', (line) => {
       completed: false,
       startTime: Date.now()
     };
-    tasks.set(taskId, taskRecord);
+    recordTask(taskId, taskRecord);
 
     const appendLog = (text) => {
       const lines = text.split('\n');

@@ -11,10 +11,24 @@ async function getKvConfig() {
   }
 }
 
+const TOOL_DISPATCH = {
+  aiod_version: () => ({ method: 'aiod/run', params: { cmd: 'version', args: [] }, timeoutMs: 15000 }),
+  aiod_health: () => ({ method: 'aiod/health', params: {}, timeoutMs: 30000 }),
+  aiod_run: (args) => ({ method: 'aiod/run', params: { cmd: args.cmd, args: Array.isArray(args.args) ? args.args : [] }, timeoutMs: 60000, maxTotalMs: 900000 }),
+  aiod_submit: (args) => ({ method: 'aiod/submit', params: { cmd: args.cmd, args: Array.isArray(args.args) ? args.args : [] }, cancelWithCall: false, timeoutMs: 15000 }),
+  aiod_log: (args) => ({ method: 'aiod/log', params: { taskId: args.taskId, offset: args.offset || 0 }, timeoutMs: 15000 }),
+  aiod_kill: (args) => ({ method: 'aiod/kill', params: { taskId: args.taskId }, timeoutMs: 15000 })
+};
+
 cindy.onHostMessage(async (msg) => {
   if (!msg || msg.type !== 'tool-call') return;
 
-  const { tool, args, callId } = msg;
+  const { tool, args = {}, callId } = msg;
+  const dispatch = TOOL_DISPATCH[tool];
+  if (!dispatch) {
+    cindy.send({ type: 'tool-result', callId, ok: false, message: `未知工具: ${tool}` });
+    return;
+  }
 
   try {
     const kv = await getKvConfig();
@@ -22,90 +36,18 @@ cindy.onHostMessage(async (msg) => {
       SANDBOX_BASE: (args && args.base) || kv.SANDBOX_BASE || ''
     };
 
-    if (tool === 'aiod_version') {
-      const resp = await cindy.node.request({
-        method: 'aiod/run',
-        params: { cmd: 'version', args: [], env },
-        callId,
-        cancelWithCall: false,
-        timeoutMs: 15000
-      });
-      if (!resp.ok) throw new Error(resp.message || '执行失败');
-      cindy.send({ type: 'tool-result', callId, ok: true, result: resp.result });
-      return;
-    }
+    const req = dispatch(args);
+    const resp = await cindy.node.request({
+      method: req.method,
+      params: { ...req.params, env },
+      callId,
+      cancelWithCall: false,
+      timeoutMs: req.timeoutMs || 15000,
+      ...(req.maxTotalMs ? { maxTotalMs: req.maxTotalMs } : {})
+    });
 
-    if (tool === 'aiod_health') {
-      const resp = await cindy.node.request({
-        method: 'aiod/health',
-        params: { env },
-        callId,
-        cancelWithCall: false,
-        timeoutMs: 30000
-      });
-      if (!resp.ok) throw new Error(resp.message || '健康检查失败');
-      cindy.send({ type: 'tool-result', callId, ok: true, result: resp.result });
-      return;
-    }
-
-    if (tool === 'aiod_run') {
-      const cmd = args.cmd;
-      const cmdArgs = Array.isArray(args.args) ? args.args : [];
-      const resp = await cindy.node.request({
-        method: 'aiod/run',
-        params: { cmd, args: cmdArgs, env },
-        callId,
-        cancelWithCall: false,
-        timeoutMs: 60000,
-        maxTotalMs: 900000
-      });
-      if (!resp.ok) throw new Error(resp.message || '执行失败');
-      cindy.send({ type: 'tool-result', callId, ok: true, result: resp.result });
-      return;
-    }
-
-    if (tool === 'aiod_submit') {
-      const cmd = args.cmd;
-      const cmdArgs = Array.isArray(args.args) ? args.args : [];
-      const resp = await cindy.node.request({
-        method: 'aiod/submit',
-        params: { cmd, args: cmdArgs, env },
-        callId,
-        cancelWithCall: false,
-        timeoutMs: 15000
-      });
-      if (!resp.ok) throw new Error(resp.message || '异步提交失败');
-      cindy.send({ type: 'tool-result', callId, ok: true, result: resp.result });
-      return;
-    }
-
-    if (tool === 'aiod_log') {
-      const resp = await cindy.node.request({
-        method: 'aiod/log',
-        params: { taskId: args.taskId, offset: args.offset || 0 },
-        callId,
-        cancelWithCall: false,
-        timeoutMs: 15000
-      });
-      if (!resp.ok) throw new Error(resp.message || '读取日志失败');
-      cindy.send({ type: 'tool-result', callId, ok: true, result: resp.result });
-      return;
-    }
-
-    if (tool === 'aiod_kill') {
-      const resp = await cindy.node.request({
-        method: 'aiod/kill',
-        params: { taskId: args.taskId },
-        callId,
-        cancelWithCall: false,
-        timeoutMs: 15000
-      });
-      if (!resp.ok) throw new Error(resp.message || '终止任务失败');
-      cindy.send({ type: 'tool-result', callId, ok: true, result: resp.result });
-      return;
-    }
-
-    cindy.send({ type: 'tool-result', callId, ok: false, message: `未知工具: ${tool}` });
+    if (!resp.ok) throw new Error(resp.message || '执行失败');
+    cindy.send({ type: 'tool-result', callId, ok: true, result: resp.result });
   } catch (err) {
     cindy.send({ type: 'tool-result', callId, ok: false, message: err.message || String(err) });
   }
