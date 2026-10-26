@@ -145,27 +145,27 @@ def build_all():
         plat_dir.mkdir(parents=True, exist_ok=True)
 
         for pid, pmeta in plugins.items():
-            if plat_name not in artifacts_map[pid]:
+            has_upstream = bool(pmeta.get("upstream"))
+            if has_upstream and plat_name not in artifacts_map[pid]:
                 continue
 
             src_plugin_dir = ROOT / "plugins" / pid
             dest_plugin_dir = plat_dir / "plugins" / pid
             shutil.copytree(src_plugin_dir, dest_plugin_dir)
 
-            # 单平台瘦身包：将对应架构二进制放在单个 bin/ 根部，清理其余架构目录
-            bin_dir = dest_plugin_dir / "bin"
-            if bin_dir.exists():
-                shutil.rmtree(bin_dir)
-            bin_dir.mkdir(parents=True, exist_ok=True)
+            if has_upstream:
+                bin_dir = dest_plugin_dir / "bin"
+                if bin_dir.exists():
+                    shutil.rmtree(bin_dir)
+                bin_dir.mkdir(parents=True, exist_ok=True)
 
-            src_bin = artifacts_map[pid][plat_name]
-            bin_name = pmeta["upstream"]["binary_name"].format(target=pinfo["target"], ext=pinfo["ext"])
-            dest_bin = bin_dir / bin_name
-            shutil.copy2(src_bin, dest_bin)
-            if not bin_name.endswith(".exe"):
-                dest_bin.chmod(0o755)
+                src_bin = artifacts_map[pid][plat_name]
+                bin_name = pmeta["upstream"]["binary_name"].format(target=pinfo["target"], ext=pinfo["ext"])
+                dest_bin = bin_dir / bin_name
+                shutil.copy2(src_bin, dest_bin)
+                if not bin_name.endswith(".exe"):
+                    dest_bin.chmod(0o755)
 
-            # 生成标准的 <pid>-<version>-<os>-<arch>.cindy
             version = pmeta["version"]
             cindy_filename = f"{pid}-{version}-{plat_name}.cindy"
             cindy_path = PACKAGES_DIST / cindy_filename

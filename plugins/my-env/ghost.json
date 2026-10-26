@@ -1,0 +1,101 @@
+{
+  "schemaVersion": 3,
+  "id": "my-env",
+  "name": "My Env",
+  "description": "全局环境变量与凭据中枢：图形化管理密钥、支持搜索与分页，为沙箱与本地任务提供安全凭据注入",
+  "whenToUse": "需要查询、添加、读取环境变量或向云端沙箱注入密钥变量时",
+  "version": "0.1.0",
+  "minCindyVersion": "3.0.0",
+  "entry": "main.js",
+  "command": "env",
+  "icon": "assets/icon.png",
+  "manual": {
+    "items": [
+      {
+        "dir": "manual/guide",
+        "name": "guide",
+        "description": "My Env 环境变量与凭据中枢使用说明"
+      }
+    ]
+  },
+  "settingsHtml": "settings.html",
+  "tools": [
+    {
+      "name": "env_list",
+      "description": "列出所有已配置的环境变量信息（包含变量名、备注、创建/更新时间，值已做脱敏展示），支持关键词搜索",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string",
+            "description": "可选的搜索关键词（匹配变量名或备注）"
+          }
+        }
+      }
+    },
+    {
+      "name": "env_get",
+      "description": "获取指定环境变量的真实明文值，供沙箱任务或本地执行调用",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string",
+            "description": "环境变量键名（如 GITHUB_TOKEN）"
+          }
+        },
+        "required": ["key"]
+      }
+    },
+    {
+      "name": "env_set",
+      "description": "新增或更新一个环境变量",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string",
+            "description": "环境变量键名（仅允许字母、数字和下划线，如 DOCKER_PASSWORD）"
+          },
+          "value": {
+            "type": "string",
+            "description": "环境变量值"
+          },
+          "memo": {
+            "type": "string",
+            "description": "变量用途备注说明"
+          }
+        },
+        "required": ["key", "value"]
+      }
+    },
+    {
+      "name": "env_delete",
+      "description": "删除指定环境变量",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string",
+            "description": "要删除的环境变量键名"
+          }
+        },
+        "required": ["key"]
+      }
+    },
+    {
+      "name": "env_dump_for_sandbox",
+      "description": "导出环境变量为键值字典对象，可直接注入云端沙箱的执行环境",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "keys": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "可选的指定变量键名列表，不传则导出所有变量"
+          }
+        }
+      }
+    }
+  ]
+}

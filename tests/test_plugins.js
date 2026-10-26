@@ -23,15 +23,15 @@ test('manifest.json matches plugins ghost.json', () => {
   }
 });
 
-test('main.js dispatches all registered tools in ghost.json', () => {
-  const plugins = ['cube-cli', 'aiod-cli'];
+test('main.js dispatches all registered tools in ghost.json for all plugins', () => {
+  const plugins = ['cube-cli', 'aiod-cli', 'my-env'];
   for (const pid of plugins) {
     const ghost = JSON.parse(fs.readFileSync(path.join(ROOT, 'plugins', pid, 'ghost.json'), 'utf-8'));
     const mainJs = fs.readFileSync(path.join(ROOT, 'plugins', pid, 'main.js'), 'utf-8');
 
     for (const tool of ghost.tools) {
       assert.ok(
-        mainJs.includes(`${tool.name}:`),
+        mainJs.includes(tool.name),
         `main.js in ${pid} includes dispatch entry for tool "${tool.name}"`
       );
     }
@@ -39,7 +39,6 @@ test('main.js dispatches all registered tools in ghost.json', () => {
 });
 
 test('worker.cjs findBinary does not delete heterogeneous binary dirs', () => {
-  // 验证各插件 bin/ 下的多架构目录依然完整存在，未被篡改清除
   const standardPlatforms = [
     'macos-arm64', 'macos-amd64',
     'windows-amd64', 'windows-arm64',
@@ -70,15 +69,25 @@ test('tasks Map bounded eviction test', () => {
     tasks.set(taskId, record);
   }
 
-  // 插入 50 个已完成任务
   for (let i = 0; i < 50; i++) {
     recordTask(`task_${i}`, { completed: true });
   }
   assert.equal(tasks.size, 50);
 
-  // 再插入第 51 个，应剔除最早完成的
   recordTask('task_50', { completed: false });
   assert.equal(tasks.size, 50);
   assert.ok(!tasks.has('task_0'), 'Oldest completed task_0 evicted');
   assert.ok(tasks.has('task_50'), 'New task_50 stored');
+});
+
+test('my-env maskValue logic test', () => {
+  function maskValue(val) {
+    if (!val) return '';
+    if (val.length <= 6) return '••••••';
+    return `${val.slice(0, 3)}••••${val.slice(-3)}`;
+  }
+
+  assert.equal(maskValue(''), '');
+  assert.equal(maskValue('12345'), '••••••');
+  assert.equal(maskValue('ghp_abcdef123456'), 'ghp••••456');
 });

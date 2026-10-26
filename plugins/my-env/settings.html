@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <title>My Env 环境变量与凭据中枢</title>
+  <style>
+    :root {
+      --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
+      --bg: var(--surface, #ffffff);
+      --fg: var(--text-primary, #1f2328);
+      --fg-muted: var(--text-secondary, #656d76);
+      --border: var(--border-default, #d0d7de);
+      --primary: #0969da;
+      --primary-hover: #0856b3;
+      --danger: #cf222e;
+      --danger-hover: #a40e26;
+      --card-bg: var(--surface-elevated, #f6f8fa);
+      --input-bg: var(--surface, #ffffff);
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: var(--surface, #0d1117);
+        --fg: var(--text-primary, #e6edf3);
+        --fg-muted: var(--text-secondary, #848d97);
+        --border: var(--border-default, #30363d);
+        --primary: #2f81f7;
+        --primary-hover: #58a6ff;
+        --danger: #f85149;
+        --danger-hover: #da3633;
+        --card-bg: var(--surface-elevated, #161b22);
+        --input-bg: var(--surface, #0d1117);
+      }
+    }
+    * { box-sizing: border-box; }
+    body {
+      font-family: var(--font);
+      font-size: 13px;
+      line-height: 1.5;
+      color: var(--fg);
+      background: var(--bg);
+      margin: 0;
+      padding: 16px;
+    }
+    h2 { font-size: 16px; font-weight: 600; margin: 0 0 4px 0; }
+    .subtitle { color: var(--fg-muted); font-size: 12px; margin-bottom: 16px; }
+
+    /* 表单卡片 */
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 14px;
+      margin-bottom: 16px;
+    }
+    .card-title { font-size: 13px; font-weight: 600; margin-bottom: 10px; display: flex; align-items: center; justify-content: space-between; }
+    .form-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+    .full-width { grid-column: 1 / -1; }
+    label { display: block; font-size: 11px; font-weight: 600; margin-bottom: 4px; color: var(--fg-muted); }
+    input[type="text"], input[type="password"] {
+      width: 100%;
+      padding: 6px 10px;
+      font-size: 12px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: var(--input-bg);
+      color: var(--fg);
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    input:focus { border-color: var(--primary); }
+
+    /* 按钮组 */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      padding: 6px 12px;
+      font-size: 12px;
+      font-weight: 500;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: var(--input-bg);
+      color: var(--fg);
+      cursor: pointer;
+      user-select: none;
+      transition: background 0.15s, border-color 0.15s;
+    }
+    .btn:hover { background: var(--border); }
+    .btn-primary { background: var(--primary); color: #ffffff; border-color: transparent; }
+    .btn-primary:hover { background: var(--primary-hover); }
+    .btn-danger { color: var(--danger); border-color: transparent; background: transparent; }
+    .btn-danger:hover { background: rgba(207, 34, 46, 0.1); }
+    .btn-sm { padding: 3px 8px; font-size: 11px; }
+
+    /* 搜索栏与过滤 */
+    .toolbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+    .search-box {
+      flex: 1;
+      position: relative;
+    }
+    .search-box input {
+      padding-left: 28px;
+    }
+    .search-icon {
+      position: absolute;
+      left: 8px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--fg-muted);
+      pointer-events: none;
+    }
+
+    /* 变量表格/列表 */
+    .env-table {
+      width: 100%;
+      border-collapse: collapse;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      overflow: hidden;
+      font-size: 12px;
+    }
+    .env-table th, .env-table td {
+      padding: 8px 12px;
+      text-align: left;
+      border-bottom: 1px solid var(--border);
+    }
+    .env-table th {
+      background: var(--card-bg);
+      color: var(--fg-muted);
+      font-weight: 600;
+      font-size: 11px;
+    }
+    .env-table tr:last-child td { border-bottom: none; }
+    .env-table tr:hover { background: rgba(127, 127, 127, 0.05); }
+    .key-badge {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-weight: 600;
+      color: var(--primary);
+    }
+    .val-cell {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      color: var(--fg-muted);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .memo-text { color: var(--fg-muted); }
+    .empty-tip {
+      text-align: center;
+      padding: 24px;
+      color: var(--fg-muted);
+      font-size: 12px;
+    }
+
+    /* 分页控制器 */
+    .pagination {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-top: 10px;
+      font-size: 12px;
+      color: var(--fg-muted);
+    }
+    .page-controls {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    /* 状态提示 */
+    .toast {
+      display: none;
+      padding: 8px 12px;
+      border-radius: 6px;
+      margin-bottom: 12px;
+      font-size: 12px;
+    }
+    .toast-success { background: rgba(46, 160, 67, 0.15); color: #2ea043; border: 1px solid rgba(46, 160, 67, 0.3); }
+    .toast-error { background: rgba(207, 34, 46, 0.15); color: var(--danger); border: 1px solid rgba(207, 34, 46, 0.3); }
+  </style>
+</head>
+<body>
+  <h2>全局环境变量与凭据中枢 (My Env)</h2>
+  <div class="subtitle">图形化管理沙箱与本地任务的密钥、环境变量与配置。数据安全保存在 Cindy 本地存储中。</div>
+
+  <div id="toast" class="toast"></div>
+
+  <!-- 新增/编辑卡片 -->
+  <div class="card">
+    <div class="card-title">
+      <span id="formTitle">添加新变量</span>
+      <button id="cancelEditBtn" class="btn btn-sm" style="display: none;">取消编辑</button>
+    </div>
+    <div class="form-grid">
+      <div>
+        <label for="envKey">变量键名 (Key) *</label>
+        <input type="text" id="envKey" placeholder="例如: GITHUB_TOKEN" autocomplete="off" />
+      </div>
+      <div>
+        <label for="envValue">变量键值 (Value) *</label>
+        <div style="position: relative;">
+          <input type="password" id="envValue" placeholder="例如: ghp_xxxx" autocomplete="off" style="padding-right: 50px;" />
+          <button type="button" id="toggleValBtn" class="btn btn-sm" style="position: absolute; right: 4px; top: 50%; transform: translateY(-50%); padding: 2px 6px;">显示</button>
+        </div>
+      </div>
+      <div class="full-width">
+        <label for="envMemo">备注说明 (Memo)</label>
+        <input type="text" id="envMemo" placeholder="例如: 个人 GitHub 账户 PAT，含 repo 和 workflow 权限" autocomplete="off" />
+      </div>
+    </div>
+    <div style="display: flex; justify-content: flex-end; gap: 8px;">
+      <button id="saveBtn" class="btn btn-primary">保存变量</button>
+    </div>
+  </div>
+
+  <!-- 搜索与工具栏 -->
+  <div class="toolbar">
+    <div class="search-box">
+      <span class="search-icon">🔍</span>
+      <input type="text" id="searchInput" placeholder="搜索变量名或备注..." />
+    </div>
+    <button id="refreshBtn" class="btn">刷新</button>
+  </div>
+
+  <!-- 变量表格 -->
+  <table class="env-table">
+    <thead>
+      <tr>
+        <th style="width: 25%;">变量键名</th>
+        <th style="width: 30%;">当前键值</th>
+        <th>备注</th>
+        <th style="width: 110px; text-align: right;">操作</th>
+      </tr>
+    </thead>
+    <tbody id="envTableBody">
+      <tr><td colspan="4" class="empty-tip">正在加载环境变量...</td></tr>
+    </tbody>
+  </table>
+
+  <!-- 分页 -->
+  <div class="pagination">
+    <span id="pageInfo">第 1 / 1 页 (共 0 项)</span>
+    <div class="page-controls">
+      <button id="prevBtn" class="btn btn-sm">上一页</button>
+      <button id="nextBtn" class="btn btn-sm">下一页</button>
+    </div>
+  </div>
+
+  <script src="settings.js"></script>
+</body>
+</html>
