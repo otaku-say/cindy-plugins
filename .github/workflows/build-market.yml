@@ -3,6 +3,8 @@ name: Build & Release Cindy Plugins Market
 on:
   push:
     branches: [main]
+    paths-ignore:
+      - 'plugins/**/bin/**'
   workflow_dispatch:
 
 permissions:
@@ -47,3 +49,16 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: 同步全架构二进制到 main 分支插件目录
+        shell: bash
+        run: |
+          python3 scripts/embed-binaries.py
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add plugins/
+          if ! git diff --cached --quiet; then
+            git commit -m "chore: 为 main 分支各插件预置全系统芯片架构二进制矩阵"
+            git push origin main
+          fi
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

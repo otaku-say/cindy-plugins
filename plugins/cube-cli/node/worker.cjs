@@ -19,10 +19,16 @@ function findBinary() {
   const isWin = process.platform === 'win32';
   const ext = isWin ? '.exe' : '';
   const exeName = `cube-cli${ext}`;
+  const platKey = `${process.platform}-${process.arch}`;
 
   const candidates = [
+    // 1. 优先按 process.platform-process.arch 精准匹配架构子目录
+    path.resolve(__dirname, '..', 'bin', platKey, exeName),
+    // 2. 兼容别名架构目录 (如 macos-arm64)
+    path.resolve(__dirname, '..', 'bin', `${process.platform === 'darwin' ? 'macos' : process.platform}-${process.arch}`, exeName),
+    // 3. 扁平 bin/ 目录 (兼容单平台瘦身包)
     path.resolve(__dirname, '..', 'bin', exeName),
-    path.resolve(__dirname, '..', 'bin', `${process.platform}-${process.arch}`, exeName),
+    // 4. 插件根目录
     path.resolve(__dirname, '..', exeName)
   ];
 
