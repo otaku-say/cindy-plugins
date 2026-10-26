@@ -1,1 +1,7 @@
-.cache/\ndist/\nnode_modules/\n.DS_Store\n*.pyc\n__pycache__/\nplugins/**/bin/\n
+.cache/
+dist/
+node_modules/
+.DS_Store
+*.pyc
+__pycache__/
+plugins/**/bin/

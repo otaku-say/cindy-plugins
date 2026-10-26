@@ -1,1 +1,121 @@
-{\n  \"schemaVersion\": 3,\n  \"id\": \"cube-cli\",\n  \"name\": \"Cube CLI\",\n  \"description\": \"CubeSandbox æŽ§åˆ¶é¢é¥æŽ§å™¨ï¼šåˆ›å»ºã€ç®¡ç†æ²™ç®±ç”Ÿå‘½å‘¨æœŸã€ç«¯å£ä¸Žæ–‡ä»¶æ“ä½œ\",\n  \"whenToUse\": \"éœ€è¦åˆ›å»ºã€åˆ—å‡ºã€æ£€æŸ¥ã€æš‚åœã€æ¢å¤ã€å¿«ç…§ã€å…‹éš†æˆ–åˆ é™¤ CubeSandboxï¼Œæˆ–æŽ’æŸ¥æŽ§åˆ¶é¢è¿žæŽ¥æ—¶\",\n  \"version\": \"0.1.0\",\n  \"minCindyVersion\": \"3.0.0\",\n  \"entry\": \"main.js\",\n  \"command\": \"cube\",\n  \"icon\": \"assets/icon.png\",\n  \"manual\": {\n    \"items\": [\n      {\n        \"dir\": \"manual/guide\",\n        \"name\": \"guide\",\n        \"description\": \"Cube CLI å®Œæ•´ä½¿ç”¨æ‰‹å†Œä¸Žæ²™ç®±æŽ§åˆ¶é¢å·¥ä½œæµæŒ‡å¼•\"\n      }\n    ]\n  },\n  \"settingsHtml\": \"settings.html\",\n  \"node\": {\n    \"entry\": \"node/worker.cjs\",\n    \"protocol\": \"json-rpc-stdio\",\n    \"lifecycle\": \"on-demand\",\n    \"idleTimeoutSeconds\": 120,\n    \"secretBindings\": [\n      {\n        \"key\": \"cubesandbox_api_key\",\n        \"label\": \"CubeSandbox API Key\",\n        \"methods\": [\n          \"cube/run\",\n          \"cube/submit\",\n          \"cube/health\"\n        ],\n        \"hint\": \"CubeSandbox æŽ§åˆ¶é¢ API è®¿é—®å¯†é’¥\"\n      }\n    ]\n  },\n  \"setup\": {\n    \"requires\": [\n      {\n        \"anyOf\": [\n          \"secret:cubesandbox_api_key\"\n        ]\n      }\n    ]\n  },\n  \"tools\": [\n    {\n      \"name\": \"cube_version\",\n      \"description\": \"æŸ¥çœ‹ cube-cli ç‰ˆæœ¬å·ä¸Žè¿è¡Œå¹³å°ä¿¡æ¯\",\n      \"parameters\": {\n        \"type\": \"object\",\n        \"properties\": {}\n      }\n    },\n    {\n      \"name\": \"cube_health\",\n      \"description\": \"æ£€æŸ¥ CubeSandbox æŽ§åˆ¶é¢è¿žæŽ¥ä¸Žå¥åº·çŠ¶æ€\",\n      \"parameters\": {\n        \"type\": \"object\",\n        \"properties\": {}\n      }\n    },\n    {\n      \"name\": \"cube_run\",\n      \"description\": \"æ‰§è¡Œ cube-cli å‘½ä»¤ï¼ˆæ”¯æŒ new, ls, rm, exec, code, info, logs, template, ports ç­‰å…¨é‡æŽ§åˆ¶é¢åŠŸèƒ½ï¼‰\",\n      \"parameters\": {\n        \"type\": \"object\",\n        \"properties\": {\n          \"cmd\": {\n            \"type\": \"string\",\n            \"description\": \"å­å‘½ä»¤åç§°ï¼ˆå¦‚ new, ls, rm, exec, code, info ç­‰ï¼‰\"\n          },\n          \"args\": {\n            \"type\": \"array\",\n            \"items\": {\n              \"type\": \"string\"\n            },\n            \"description\": \"ä¼ é€’ç»™å­å‘½ä»¤çš„å‚æ•°åˆ—è¡¨ï¼ˆå¦‚ [\\\"--need=code\\\"], [\\\"sid\\\", \\\"uname -a\\\"]ï¼‰\"\n          }\n        },\n        \"required\": [\n          \"cmd\"\n        ]\n      }\n    },\n    {\n      \"name\": \"cube_submit\",\n      \"description\": \"å¼‚æ­¥æäº¤é•¿æ—¶é—´è¿è¡Œçš„ä»»åŠ¡ï¼ˆå¦‚åˆ›å»ºå¤§æ¨¡æ¿æ²™ç®±ã€é•¿æ—¶é—´æ‰§è¡Œä»£ç ï¼‰ï¼Œç«‹å³è¿”å›ž taskId\",\n      \"parameters\": {\n        \"type\": \"object\",\n        \"properties\": {\n          \"cmd\": {\n            \"type\": \"string\",\n            \"description\": \"è¦å¼‚æ­¥æ‰§è¡Œçš„å­å‘½ä»¤\"\n          },\n          \"args\": {\n            \"type\": \"array\",\n            \"items\": {\n              \"type\": \"string\"\n            },\n            \"description\": \"ä¼ é€’ç»™å­å‘½ä»¤çš„å‚æ•°åˆ—è¡¨\"\n          }\n        },\n        \"required\": [\n          \"cmd\"\n        ]\n      }\n    },\n    {\n      \"name\": \"cube_log\",\n      \"description\": \"èŽ·å–ç”± cube_submit æäº¤çš„åŽå°ä»»åŠ¡è¾“å‡ºæ—¥å¿—\",\n      \"parameters\": {\n        \"type\": \"object\",\n        \"properties\": {\n          \"taskId\": {\n            \"type\": \"string\",\n            \"description\": \"å¼‚æ­¥ä»»åŠ¡ ID\"\n          },\n          \"offset\": {\n            \"type\": \"integer\",\n            \"description\": \"ä»Žç¬¬å‡ è¡Œå¼€å§‹è¯»å–æ—¥å¿—ï¼ˆç¼ºçœä»Žå¤´è¯»å–ï¼‰\"\n          }\n        },\n        \"required\": [\n          \"taskId\"\n        ]\n      }\n    },\n    {\n      \"name\": \"cube_kill\",\n      \"description\": \"ç»ˆæ­¢æ­£åœ¨è¿è¡Œçš„åŽå°å¼‚æ­¥ä»»åŠ¡\",\n      \"parameters\": {\n        \"type\": \"object\",\n        \"properties\": {\n          \"taskId\": {\n            \"type\": \"string\",\n            \"description\": \"å¼‚æ­¥ä»»åŠ¡ ID\"\n          }\n        },\n        \"required\": [\n          \"taskId\"\n        ]\n      }\n    }\n  ]\n}
+{
+  "schemaVersion": 3,
+  "id": "aiod-cli",
+  "name": "Aiod CLI",
+  "description": "CubeSandbox æ²™ç®±å†… aiod v2 API é¥æŽ§å™¨ï¼šè¿›ç¨‹æ‰§è¡Œã€æ–‡ä»¶ç®¡ç†ã€æµè§ˆå™¨ä¸Ž MCP",
+  "whenToUse": "éœ€è¦æ·±å…¥ CubeSandbox æ²™ç®±å†…æ‰§è¡Œå‘½ä»¤ã€ç®¡ç†æ–‡ä»¶ã€é¥æŽ§æµè§ˆå™¨ã€æ‰§è¡Œä»£ç æˆ–å¯åŠ¨ MCP Server æ—¶",
+  "version": "0.1.0",
+  "minCindyVersion": "3.0.0",
+  "entry": "main.js",
+  "command": "aiod",
+  "icon": "assets/icon.png",
+  "manual": {
+    "items": [
+      {
+        "dir": "manual/guide",
+        "name": "guide",
+        "description": "Aiod CLI å®Œæ•´ä½¿ç”¨æ‰‹å†Œä¸Žæ²™ç®±å†…éƒ¨ç³»ç»Ÿæ“ä½œæŒ‡å¼•"
+      }
+    ]
+  },
+  "settingsHtml": "settings.html",
+  "node": {
+    "entry": "node/worker.cjs",
+    "protocol": "json-rpc-stdio",
+    "lifecycle": "on-demand",
+    "idleTimeoutSeconds": 120,
+    "secretBindings": [
+      {
+        "key": "sandbox_key",
+        "label": "Sandbox Key",
+        "methods": ["aiod/run", "aiod/submit", "aiod/health"],
+        "hint": "æ²™ç®±å†… aiod ç½‘å…³é‰´æƒ Keyï¼ˆå¯é€‰ï¼‰"
+      }
+    ]
+  },
+  "setup": {
+    "requires": []
+  },
+  "tools": [
+    {
+      "name": "aiod_version",
+      "description": "æŸ¥çœ‹ aiod-cli ç‰ˆæœ¬å·ä¸Žè¿è¡Œå¹³å°ä¿¡æ¯",
+      "parameters": {
+        "type": "object",
+        "properties": {}
+      }
+    },
+    {
+      "name": "aiod_health",
+      "description": "æ£€æŸ¥å½“å‰é…ç½®çš„æ²™ç®±å†… aiod æœåŠ¡çš„å¥åº·ä¸Žè¿žé€šçŠ¶æ€",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "base": {
+            "type": "string",
+            "description": "æ²™ç®±ç½‘å…³åœ°å€ï¼ˆå¯é€‰ï¼Œå¦‚ä¸ä¼ åˆ™ä½¿ç”¨é»˜è®¤é…ç½®ä¸­çš„ SANDBOX_BASEï¼‰"
+          }
+        }
+      }
+    },
+    {
+      "name": "aiod_run",
+      "description": "æ‰§è¡Œ aiod-cli å‘½ä»¤ï¼ˆæ”¯æŒ exec, files, pty, browser, misc ç­‰æ²™ç®±å†…éƒ¨æ“ä½œï¼‰",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "cmd": {
+            "type": "string",
+            "description": "å­å‘½ä»¤åç§°ï¼ˆå¦‚ exec, ls, cat, write, upload, download, browser ç­‰ï¼‰"
+          },
+          "args": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "ä¼ é€’ç»™å­å‘½ä»¤çš„å‚æ•°åˆ—è¡¨"
+          },
+          "base": {
+            "type": "string",
+            "description": "é’ˆå¯¹æŒ‡å®šæ²™ç®±å®žä¾‹çš„ç½‘å…³åœ°å€ï¼ˆå¯é€‰ï¼‰"
+          },
+        },
+        "required": ["cmd"]
+      }
+    },
+    {
+      "name": "aiod_submit",
+      "description": "å¼‚æ­¥æäº¤f²™ç®±å†…çš„é•¿ä»»åŠ¡ï¼Œç«‹å³è¿”å›ž taskId",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "cmd": { "type": "string", "description": "è¦å¼‚æ­¥æ‰§è¡Œçš„å­å‘½ä»¤" },
+          "args": { "type": "array", "items": { "type": "string" }, "description": "å‚æ•°åˆ—è¡¨" },
+          "base": { "type": "string", "description": "æ²™ç®±ç½‘å…³åœ°å€ï¼ˆå¯é€‰ï¼‰\"\n          }\n        },
+        "required": ["cmd"]
+      }
+    },
+    {
+      "name": "aiod_log",
+      "description": "èŽ·å–ç”± aiod_submit æäº¤çš„åŽå°ä»»åŠ¡è¾“å‡ºæ—¥å¿—\",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "taskId": { "type": "string", "description": "ä»»åŠ¡ ID" },
+          "offset": { "type": "integer", "description": "èµ·å§‹è¡Œ/åç§»" }
+        },
+        "required": ["taskId"]
+      }
+    },
+    {
+      "name": "aiod_kill",
+      "description": "ç»ˆæ­¢æ­£åœ¨è¿è¡Œçš„æ²™ç®±å†…å¼‚æ­¥ä»»åŠ¡",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "taskId": { "type": "string", "description": "ä»»åŠ¡ ID" }
+        },
+        "required": ["taskId"]
+      }
+    }
+  ]
+}
+zw(v)àm«ëŠZ¶eº§³ö¢¡×%‹ø!¢Ëc²‰Ü¢{^ž×°¢'66†VÖfW'6–öâ#¢2À¢&–B#¢&7V&RÖ6Æ’"À¢&æÖR#¢$7V&R4Ä’"À¢&FW67&—F–öâ#¢$7V&U6æF&÷‚hê~X‹n™Ú.˜^hê~YšŽûÉ®X‰¾[»®8zêynk)žzëyIþYÞYŽiÉþ8zºþXú>Kˆîih~K»ni8ÞKÙÂ"À¢'v†VåFõW6R#¢.™ÈŠhX‰¾[»®8X‰~X{®8j8iú^8i¨.XÎ8h.ZHÞ8[ú¾xZ~8XX¾™¨nh‰nXŠ™šB7V&U6æF&÷ŽûÈÎh‰nhé.iú^hê~X‹n™Ú.‹ùîhê^i{b"À¢'fW'6–öâ#¢#ãã"À¢&Ö–ä6–æG•fW'6–öâ#¢#2ãã"À¢&VçG'’#¢&Ö–âæ§2"À¢&6öÖÖæB#¢&7V&R"À¢&–6öâ#¢&76WG2ö–6öâçær"À¢&ÖçVÂ#¢°¢&—FV×2#¢°¢°¢&F—"#¢&ÖçVÂöwV–FR"À¢&æÖR#¢&wV–FR"À¢&FW67&—F–öâ#¢$7V&R4Ä’ZèÎi[NKÛþyJŽh˜¾XhÎKˆîk)žzëhê~X‹n™Ú.[z^KÙÎkXhÈ~[ÉR ¢Ð¢Ð¢ÒÀ¢'6WGF–æw4‡FÖÂ#¢'6WGF–æw2æ‡FÖÂ"À¢&æöFR#¢°¢&VçG'’#¢&æöFR÷v÷&¶W"æ6§2"À¢'&÷Fö6öÂ#¢&§6öâ×'2×7FF–ò"À¢&Æ–fV7–6ÆR#¢&öâÖFVÖæB"À¢&–FÆUF–ÖV÷WE6V6öæG2#¢#À¢'6V7&WD&–æF–æw2#¢°¢°¢&¶W’#¢&7V&W6æF&÷…ö•ö¶W’"À¢&Æ&VÂ#¢$7V&U6æF&÷‚’¶W’"À¢&ÖWF†öG2#¢°¢&7V&R÷'Vâ"À¢&7V&R÷7V&Ö—B"À¢&7V&Rö†VÇF‚ ¢ÒÀ¢&†–çB#¢$7V&U6æF&÷‚hê~X‹n™Ú"’Šëþ™zîZøn™*R ¢Ð¢Ð¢ÒÀ¢'6WGW#¢°¢'&WV—&W2#¢°¢°¢&ç”öb#¢°¢'6V7&WC¦7V&W6æF&÷…ö•ö¶W’ ¢Ð¢Ð¢Ð¢ÒÀ¢'FööÇ2#¢°¢°¢&æÖR#¢&7V&U÷fW'6–öâ"À¢&FW67&—F–öâ#¢.iú^yÈ²7V&RÖ6Æ’x˜ŽiÊÎXû~Kˆî‹ùŠÎ[›>XûKúhò"À¢'&ÖWFW'2#¢°¢'G—R#¢&ö&¦V7B"À¢'&÷W'F–W2#¢·Ð¢Ð¢ÒÀ¢°¢&æÖR#¢&7V&Uö†VÇF‚"À¢&FW67&—F–öâ#¢.j8iúR7V&U6æF&÷‚hê~X‹n™Ú.‹ùîhê^KˆîX^[«~x«nh"À¢'&ÖWFW'2#¢°¢'G—R#¢&ö&¦V7B"À¢'&÷W'F–W2#¢·Ð¢Ð¢ÒÀ¢°¢&æÖR#¢&7V&U÷'Vâ"À¢&FW67&—F–öâ#¢.hš~ŠÂ7V&RÖ6Æ’YÞKºNûÈŽiJþhÈæWrÂÇ2Â&ÒÂW†V2Â6öFRÂ–æfòÂÆöw2ÂFV×ÆFRÂ÷'G2zØžXZŽ˜xþhê~X‹n™Ú.X©þˆ;ÞûÈ’"À¢'&ÖWFW'2#¢°¢'G—R#¢&ö&¦V7B"À¢'&÷W'F–W2#¢°¢&6ÖB#¢°¢'G—R#¢'7G&–ær"À¢&FW67&—F–öâ#¢.ZÙYÞKºNYÞz{ûÈŽZh"æWrÂÇ2Â&ÒÂW†V2Â6öFRÂ–æfòzØžûÈ’ ¢ÒÀ¢&&w2#¢°¢'G—R#¢&'&’"À¢&—FV×2#¢°¢'G—R#¢'7G&–ær ¢ÒÀ¢&FW67&—F–öâ#¢.KÊ˜	.{¹žZÙYÞKºNy¨NXø.i[X‰~ŠŽûÈŽZh"µÂ"ÒÖæVVCÖ6öFUÂ%ÒÂµÂ'6–EÂ"ÂÂ'VæÖRÖÂ%ÞûÈ’ ¢Ð¢ÒÀ¢'&WV—&VB#¢°¢&6ÖB ¢Ð¢Ð¢ÒÀ¢°¢&æÖR#¢&7V&U÷7V&Ö—B"À¢&FW67&—F–öâ#¢.[È.jÚ^hùKªN™[þi{n™{N‹ùŠÎy¨NK»¾XªûÈŽZh.X‰¾[»®ZJ~jŠiÛþk)žzë8™[þi{n™{Nhš~ŠÎKº>zûÈžûÈÎz¸¾XÛ>‹ùNY¹âF6´–B"À¢'&ÖWFW'2#¢°¢'G—R#¢&ö&¦V7B"À¢'&÷W'F–W2#¢°¢&6ÖB#¢°¢'G—R#¢'7G&–ær"À¢&FW67&—F–öâ#¢.Šh[È.jÚ^hš~ŠÎy¨NZÙYÞKºB ¢ÒÀ¢&&w2#¢°¢'G—R#¢&'&’"À¢&—FV×2#¢°¢'G—R#¢'7G&–ær ¢ÒÀ¢&FW67&—F–öâ#¢.KÊ˜	.{¹žZÙYÞKºNy¨NXø.i[X‰~Š‚ ¢Ð¢ÒÀ¢'&WV—&VB#¢°¢&6ÖB ¢Ð¢Ð¢ÒÀ¢°¢&æÖR#¢&7V&UöÆör"À¢&FW67&—F–öâ#¢.ˆë~XùnyK7V&U÷7V&Ö—BhùKªNy¨NYîXûK»¾Xª‹é>X{®iz^[ùr"À¢'&ÖWFW'2#¢°¢'G—R#¢&ö&¦V7B"À¢'&÷W'F–W2#¢°¢'F6´–B#¢°¢'G—R#¢'7G&–ær"À¢&FW67&—F–öâ#¢.[È.jÚ^K»¾Xª”B ¢ÒÀ¢&öfg6WB#¢°¢'G—R#¢&–çFVvW""À¢&FW67&—F–öâ#¢.K¸îzÊÎXzŠÎ[ÈZx¾Šû¾Xùniz^[ù~ûÈŽ{Ë®yÈK¸îZKNŠû¾XùnûÈ’ ¢Ð¢ÒÀ¢'&WV—&VB#¢°¢'F6´–B ¢Ð¢Ð¢ÒÀ¢°¢&æÖR#¢&7V&Uö¶–ÆÂ"À¢&FW67&—F–öâ#¢.{¸ŽjÚ.jÚ>YÊŽ‹ùŠÎy¨NYîXû[È.jÚ^K»¾Xª"À¢'&ÖWFW'2#¢°¢'G—R#¢&ö&¦V7B"À¢'&÷W'F–W2#¢°¢'F6´–B#¢°¢'G—R#¢'7G&–ær"À¢&FW67&—F–öâ#¢.[È.jÚ^K»¾Xª”B ¢Ð¢ÒÀ¢'&WV—&VB#¢°¢'F6´–B ¢Ð¢Ð¢Ð¢Ð§
