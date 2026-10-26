@@ -19,14 +19,22 @@
       {
         "key": "cubesandbox_api_key",
         "label": "CubeSandbox API Key",
-        "methods": ["cube/run", "cube/submit", "cube/health"],
+        "methods": [
+          "cube/run",
+          "cube/submit",
+          "cube/health"
+        ],
         "hint": "CubeSandbox 控制面 API 访问密钥"
       }
     ]
   },
   "setup": {
     "requires": [
-      { "anyOf": ["secret:cubesandbox_api_key"] }
+      {
+        "anyOf": [
+          "secret:cubesandbox_api_key"
+        ]
+      }
     ]
   },
   "tools": [
@@ -58,11 +66,15 @@
           },
           "args": {
             "type": "array",
-            "items": { "type": "string" },
+            "items": {
+              "type": "string"
+            },
             "description": "传递给子命令的参数列表（如 [\"--need=code\"], [\"sid\", \"uname -a\"]）"
           }
         },
-        "required": ["cmd"]
+        "required": [
+          "cmd"
+        ]
       }
     },
     {
@@ -77,11 +89,15 @@
           },
           "args": {
             "type": "array",
-            "items": { "type": "string" },
+            "items": {
+              "type": "string"
+            },
             "description": "传递给子命令的参数列表"
           }
         },
-        "required": ["cmd"]
+        "required": [
+          "cmd"
+        ]
       }
     },
     {
@@ -99,7 +115,9 @@
             "description": "从第几行开始读取日志（缺省从头读取）"
           }
         },
-        "required": ["taskId"]
+        "required": [
+          "taskId"
+        ]
       }
     },
     {
@@ -113,7 +131,9 @@
             "description": "异步任务 ID"
           }
         },
-        "required": ["taskId"]
+        "required": [
+          "taskId"
+        ]
       }
     }
   ]

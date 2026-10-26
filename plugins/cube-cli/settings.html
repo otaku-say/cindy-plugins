@@ -2,37 +2,17 @@
 <html lang="zh-CN">
 <head>
   <meta charset="utf-8" />
-  <title>CubeSandbox CLI 设置</title>
+  <title>Cube CLI 设置</title>
   <style>
     :root {
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
       font-size: 13px;
       line-height: 1.5;
-      color: #24292f;
-      background: transparent;
-    }
-    @media (prefers-color-scheme: dark) {
-      :root {
-        color: #c9d1d9;
-      }
-      input {
-        background: #0d1117;
-        color: #c9d1d9;
-        border-color: #30363d !important;
-      }
-      .card {
-        background: #161b22 !important;
-        border-color: #30363d !important;
-      }
-      .badge-saved {
-        background: #1f6feb22 !important;
-        color: #58a6ff !important;
-        border-color: #388bfd33 !important;
-      }
+      color: inherit;
     }
     body {
       margin: 0;
-      padding: 16px;
+      padding: 14px;
       box-sizing: border-box;
     }
     .field {
@@ -46,17 +26,19 @@
     }
     .hint {
       font-size: 11px;
-      color: #6e7681;
+      opacity: 0.7;
       margin-top: 4px;
     }
     input {
       width: 100%;
       box-sizing: border-box;
       padding: 7px 10px;
-      border: 1px solid #d0d7de;
+      border: 1px solid var(--border-default, #d0d7de);
       border-radius: 6px;
       font-size: 13px;
       outline: none;
+      background: var(--surface, #ffffff);
+      color: inherit;
       transition: border-color 0.2s;
     }
     input:focus {
@@ -68,7 +50,7 @@
       align-items: center;
     }
     button {
-      padding: 6px 14px;
+      padding: 6px 16px;
       font-size: 12px;
       font-weight: 500;
       color: #ffffff;
@@ -80,19 +62,18 @@
     button:hover {
       background: #0860ca;
     }
-    button.secondary {
-      background: transparent;
-      color: inherit;
-      border-color: #d0d7de;
+    button:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
     }
     .badge-saved {
       display: inline-block;
       padding: 2px 7px;
       font-size: 11px;
       border-radius: 12px;
-      background: #e7f3ff;
+      background: rgba(9, 105, 218, 0.12);
       color: #0969da;
-      border: 1px solid #b6d7fc;
+      border: 1px solid rgba(9, 105, 218, 0.25);
       margin-left: 8px;
     }
     #status {
@@ -104,15 +85,15 @@
     }
     #status.success {
       display: block;
-      background: #dafbe1;
-      color: #1a7f37;
-      border: 1px solid #aceebb;
+      background: rgba(46, 160, 67, 0.15);
+      color: #2ea043;
+      border: 1px solid rgba(46, 160, 67, 0.3);
     }
     #status.error {
       display: block;
-      background: #ffebe9;
+      background: rgba(207, 34, 46, 0.15);
       color: #cf222e;
-      border: 1px solid #ffcecb;
+      border: 1px solid rgba(207, 34, 46, 0.3);
     }
   </style>
 </head>
@@ -144,85 +125,7 @@
 
   <div id="status"></div>
 
-  <script>
-    const apiKeyInput = document.getElementById('apiKey');
-    const apiUrlInput = document.getElementById('apiUrl');
-    const proxyUrlInput = document.getElementById('proxyUrl');
-    const apiKeyBadge = document.getElementById('apiKeyBadge');
-    const saveBtn = document.getElementById('saveBtn');
-    const statusDiv = document.getElementById('status');
-
-    function showStatus(text, isError = false) {
-      statusDiv.textContent = text;
-      statusDiv.className = isError ? 'error' : 'success';
-      statusDiv.style.display = 'block';
-      setTimeout(() => { statusDiv.style.display = 'none'; }, 4000);
-    }
-
-    async function loadConfig() {
-      try {
-        // 读取 Secret 状态
-        const secRes = await fetch('/secrets');
-        if (secRes.ok) {
-          const secrets = await secRes.json();
-          const target = secrets.find(s => s.key === 'cubesandbox_api_key');
-          if (target && target.saved) {
-            apiKeyBadge.style.display = 'inline-block';
-            apiKeyBadge.textContent = target.tail ? `已保存 (尾号 ${target.tail})` : '已安全保存';
-            apiKeyInput.placeholder = '••••••••••••••••（若需更换请重新输入）';
-          }
-        }
-
-        // 读取 KV
-        const kvRes = await fetch('/kv');
-        if (kvRes.ok) {
-          const kv = await kvRes.json();
-          if (kv.CUBESANDBOX_API_URL) apiUrlInput.value = kv.CUBESANDBOX_API_URL;
-          if (kv.CUBESANDBOX_PROXY_URL) proxyUrlInput.value = kv.CUBESANDBOX_PROXY_URL;
-        }
-      } catch (e) {
-        console.error('加载配置失败', e);
-      }
-    }
-
-    saveBtn.addEventListener('click', async () => {
-      saveBtn.disabled = true;
-      try {
-        const keyVal = apiKeyInput.value.trim();
-        if (keyVal) {
-          const sRes = await fetch('/secrets/cubesandbox_api_key', {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ value: keyVal })
-          });
-          if (!sRes.ok) throw new Error('保存 API Key 失败');
-          apiKeyInput.value = '';
-        }
-
-        const apiUrl = apiUrlInput.value.trim();
-        await fetch('/kv/CUBESANDBOX_API_URL', {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(apiUrl)
-        });
-
-        const proxyUrl = proxyUrlInput.value.trim();
-        await fetch('/kv/CUBESANDBOX_PROXY_URL', {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(proxyUrl)
-        });
-
-        showStatus('配置已成功保存！');
-        await loadConfig();
-      } catch (err) {
-        showStatus(err.message, true);
-      } finally {
-        saveBtn.disabled = false;
-      }
-    });
-
-    loadConfig();
-  </script>
+  <!-- CSP 约束：脚本必须完全外挂为独立 JS 文件 -->
+  <script src="settings.js"></script>
 </body>
 </html>

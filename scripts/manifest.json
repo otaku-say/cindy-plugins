@@ -50,12 +50,17 @@
   "plugins": {
     "cube-cli": {
       "id": "cube-cli",
-      "name": "CubeSandbox CLI",
+      "name": "Cube CLI",
       "description": "CubeSandbox 控制面遥控器：创建、管理沙箱生命周期、端口与文件操作",
       "version": "0.1.0",
       "command": "cube",
       "author": "otaku-say",
-      "tags": ["sandbox", "cloud", "cube-cli", "remote-control"],
+      "tags": [
+        "sandbox",
+        "cloud",
+        "cube-cli",
+        "remote-control"
+      ],
       "upstream": {
         "repo": "otaku-say/sandbox-cli",
         "tag": "latest",
@@ -70,13 +75,25 @@
       "version": "0.1.0",
       "command": "aiod",
       "author": "otaku-say",
-      "tags": ["sandbox", "aiod", "exec", "files", "browser", "mcp"],
+      "tags": [
+        "sandbox",
+        "aiod",
+        "exec",
+        "files",
+        "browser",
+        "mcp"
+      ],
       "upstream": {
         "repo": "otaku-say/sandbox-cli",
         "tag": "latest",
         "artifact_template": "aiod-cli-{target}{ext}",
         "binary_name": "aiod-cli{ext}",
-        "supported_platforms": ["macos-arm64", "macos-x64", "linux-x64", "linux-arm64"]
+        "supported_platforms": [
+          "macos-arm64",
+          "macos-x64",
+          "linux-x64",
+          "linux-arm64"
+        ]
       }
     }
   }
