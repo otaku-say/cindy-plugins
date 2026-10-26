@@ -35,4 +35,73 @@
 ```text
 https://github.com/otaku-say/cindy-plugins
 ```
-*注：通用主仓库内嵌了全套架构矩阵，插件运行时会根据当前硬件自动加载对应的架构二进制，并立即自动物理清理所有异构平台目录。*\n\n---\n\n## 当前已收录插件\n\n| 插件 ID | 展示名称 | 指令前缀 | 架构覆盖 | 一句话说明 |\n| :--- | :--- | :--- | :--- | :--- |\n| **`cube-cli`** | **Cube CLI** | `$cube` | 6 架构全覆盖 | CubeSandbox 控制面遥控器：创建沙箱、生命周期启停、端口探测与元数据管理 |\n| **`aiod-cli`** | **Aiod CLI** | `$aiod` | `macos` / `linux` (`arm64`, `amd64`) | 沙箱内部遥控器：文件读写传输、进程交互、浏览器遥控与 MCP Server |\n\n---\n\n## 核心架构与工程规范\n\n### 1. 全平台全架构标准矩阵\n\n所有包含原生工具链或二进制的插件，均覆盖 6 种标准系统与芯片架构：\n\n| 平台标识 (`platform`) | 系统全称 (`os`) | 架构名称 (`arch`) | 编译 Target | 产物命名范式 |\n| :--- | :--- | :--- | :--- | :--- |\n| `macos-arm64` | `macos` | `arm64` | `aarch64-macos` | `<id>-<version>-macos-arm64.cindy` |\n| `macos-amd64` | `macos` | `amd64` | `x86_64-macos` | `<id>-<version>-macos-amd64.cindy` |\n| `windows-amd64` | `windows` | `amd64` | `x86_64-windows-gnu` | `<id>-<version>-windows-amd64.cindy` |\n| `windows-arm64` | `windows` | `arm64` | `aarch64-windows-gnu` | `<id>-<version>-windows-arm64.cindy` |\n| `linux-amd64` | `linux` | `amd64` | `x86_64-linux-musl` | `<id>-<version>-linux-amd64.cindy` |\n| `linux-arm64` | `linux` | `arm64` | `aarch64-linux-musl` | `<id>-<version>-linux-arm64.cindy` |\n\n---\n\n### 2. 企业级凭证安全隔离模型\n\n所有插件严格遵守 Cindy 安全红线，绝不在聊天上下文、模型输入或本地源码中明文传递密钥：\n- **敏感凭证（API Key）**：\n  - 声明于 `node.secretBindings`，由用户在详情页或设置页自绘界面（`settings.html`）填入；\n  - 存储于主机操作系统级别的受保护安全保险库（`safeStorage`）；\n  - 仅在发起特定 Node 工作进程方法时，由主机在底层临时注入子进程环境变量，绝不进入标准输出或日志流。\n- **配置项（API URL / 网关地址）**：\n  - 存放于 `setup.kv` 与 `/kv` 接口，支持灵活配置与测试。\n- **设置面板**：\n  - 均提供独立的 `settings.html` + `settings.js`（严格满足 CSP 策略），自动适配系统亮/暗色主题，提供安全状态脱敏回显与实时连通性探测。\n\n---\n\n### 3. 长任务异步控制体系（三件套）\n\n凡涉及沙箱镜像拉取、代码执行或长耗时任务，均提供非阻塞的异步执行规范：\n- `*_submit`：异步提交，返回唯一 `taskId` 并立即结清；\n- `*_log`：流式或增量获取最新标准输出与错误日志（支持环形日志缓冲，防内存泄漏）；\n- `*_kill`：主动向执行中进程发送 `SIGTERM` / `SIGKILL` 信号实现可控中止；\n- 单次 Node 请求配置 `maxTotalMs: 900000`（最长 15 分钟），支持“有输出即续期”，避免超时异常。\n\n---\n\n## 未来新插件入驻高标准规范\n\n本仓库未来将持续收录新的优质工具链插件。所有拟入驻插件均须符合以下标准工程范式：\n\n1. **结构完备性**：\n   - 必须包含规范的 `ghost.json`（`schemaVersion: 3`，必填 `minCindyVersion`）；\n   - `whenToUse` 必须为纯场景枚举，禁止塞入调用规则；\n   - 必须提供 `settings.html` 与外挂 `settings.js`（自适应暗黑模式，接入 `/secrets` 与 `/kv`）；\n   - 必须提供 128x128 像素 PNG 高清图标。\n2. **多架构覆盖与命名统一**：\n   - 必须在 `scripts/manifest.json` 中配置全平台构建矩阵映射，严格遵循 `macos`, `windows`, `linux` 与 `arm64`, `amd64` 命名；\n   - 由自动化工作流统一拉取上游发布资产、做 SHA256SUMS 强校验后生成单平台轻量包与平台孤立分支。\n3. **安全与幂等**：\n   - 严格落实密钥安全隔离，所有操作与初始化流程必须具备幂等性（重复调用零副作用）。\n\n详细入驻指南请参阅 [CONTRIBUTING.md](./CONTRIBUTING.md)。\n
+*注：通用主仓库内嵌了全套架构矩阵，插件运行时会根据当前硬件自动加载对应的架构二进制，并立即自动物理清理所有异构平台目录。*
+
+---
+
+## 当前已收录插件
+
+| 插件 ID | 展示名称 | 指令前缀 | 架构覆盖 | 一句话说明 |
+| :--- | :--- | :--- | :--- | :--- |
+| **`cube-cli`** | **Cube CLI** | `$cube` | 6 架构全覆盖 | CubeSandbox 控制面遥控器：创建沙箱、生命周期启停、端口探测与元数据管理 |
+| **`aiod-cli`** | **Aiod CLI** | `$aiod` | `macos` / `linux` (`arm64`, `amd64`) | 沙箱内部遥控器：文件读写传输、进程交互、浏览器遥控与 MCP Server |
+
+---
+
+## 核心架构与工程规范
+
+### 1. 全平台全架构标准矩阵
+
+所有包含原生工具链或二进制的插件，均覆盖 6 种标准系统与芯片架构：
+
+| 平台标识 (`platform`) | 系统全称 (`os`) | 架构名称 (`arch`) | 编译 Target | 产物命名范式 |
+| :--- | :--- | :--- | :--- | :--- |
+| `macos-arm64` | `macos` | `arm64` | `aarch64-macos` | `<id>-<version>-macos-arm64.cindy` |
+| `macos-amd64` | `macos` | `amd64` | `x86_64-macos` | `<id>-<version>-macos-amd64.cindy` |
+| `windows-amd64` | `windows` | `amd64` | `x86_64-windows-gnu` | `<id>-<version>-windows-amd64.cindy` |
+| `windows-arm64` | `windows` | `arm64` | `aarch64-windows-gnu` | `<id>-<version>-windows-arm64.cindy` |
+| `linux-amd64` | `linux` | `amd64` | `x86_64-linux-musl` | `<id>-<version>-linux-amd64.cindy` |
+| `linux-arm64` | `linux` | `arm64` | `aarch64-linux-musl` | `<id>-<version>-linux-arm64.cindy` |
+
+---
+
+### 2. 企业级凭证安全隔离模型
+
+所有插件严格遵守 Cindy 安全红线，绝不在聊天上下文、模型输入或本地源码中明文传递密钥：
+- **敏感凭证（API Key）**：
+  - 声明于 `node.secretBindings`，由用户在详情页或设置页自绘界面（`settings.html`）填入；
+  - 存储于主机操作系统级别的受保护安全保险库（`safeStorage`）；
+  - 仅在发起特定 Node 工作进程方法时，由主机在底层临时注入子进程环境变量，绝不进入标准输出或日志流。
+- **配置项（API URL / 网关地址）**：
+  - 存放于 `setup.kv` 与 `/kv` 接口，支持灵活配置与测试。
+- **设置面板**：
+  - 均提供独立的 `settings.html` + `settings.js`（严格满足 CSP 策略），自动适配系统亮/暗色主题，提供安全状态脱敏回显与实时连通性探测。
+
+---
+
+### 3. 长任务异步控制体系（三件套）
+
+凡涉及沙箱镜像拉取、代码执行或长耗时任务，均提供非阻塞的异步执行规范：
+- `*_submit`：异步提交，返回唯一 `taskId` 并立即结清；
+- `*_log`：流式或增量获取最新标准输出与错误日志（支持环形日志缓冲，防内存泄漏）；
+- `*_kill`：主动向执行中进程发送 `SIGTERM` / `SIGKILL` 信号实现可控中止；
+- 单次 Node 请求配置 `maxTotalMs: 900000`（最长 15 分钟），支持“有输出即续期”，避免超时异常。
+
+---
+
+## 未来新插件入驻高标准规范
+
+本仓库未来将持续收录新的优质工具链插件。所有拟入驻插件均须符合以下标准工程范式：
+
+1. **结构完备性**：
+   - 必须包含规范的 `ghost.json`（`schemaVersion: 3`，必填 `minCindyVersion`）；
+   - `whenToUse` 必须为纯场景枚举，禁止塞入调用规则；
+   - 必须提供 `settings.html` 与外挂 `settings.js`（自适应暗黑模式，接入 `/secrets` 与 `/kv`）；
+   - 必须提供 128x128 像素 PNG 高清图标。
+2. **多架构覆盖与命名统一**：
+   - 必须在 `scripts/manifest.json` 中配置全平台构建矩阵映射，严格遵循 `macos`, `windows`, `linux` 与 `arm64`, `amd64` 命名；
+   - 由自动化工作流统一拉取上游发布资产、做 SHA256SUMS 强校验后生成单平台轻量包与平台孤立分支。
+3. **安全与幂等**：
+   - 严格落实密钥安全隔离，所有操作与初始化流程必须具备幂等性（重复调用零副作用）。
+
+详细入驻指南请参阅 [CONTRIBUTING.md](./CONTRIBUTING.md)。

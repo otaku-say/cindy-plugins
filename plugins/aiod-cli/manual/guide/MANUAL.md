@@ -1,1 +1,81 @@
-{\n  \"schemaVersion\": 3,\n  \"id\": \"aiod-cli\",\n  \"name\": \"Aiod CLI\",\n  \"description\": \"CubeSandbox 沙箱内 aiod v2 API 遥控器：进程执行、文件管理、浏览器与 MCP\",\n  \"whenToUse\": \"需要深入 CubeSandbox 沙箱内执行命令、管理文件、遥控浏览器、执行代码或启动 MCP Server 时\",\n  \"version\": \"0.1.0\",\n  \"minCindyVersion\": \"3.0.0\",\n  \"entry\": \"main.js\",\n  \"command\": \"aiod\",\n  \"icon\": \"assets/icon.png\",\n  \"manual\": {\n    \"items\": [\n      {\n        \"dir\": \"manual/guide\",\n        \"name\": \"guide\",\n        \"description\": \"Aiod CLI 完整使用手册与沙箱内部系统操作指引\"\n      }\n    ]\n  },\n  \"settingsHtml\": \"settings.html\",\n  \"node\": {\n    \"entry\": \"node/worker.cjs\",\n    \"protocol\": \"json-rpc-stdio\",\n    \"lifecycle\": \"on-demand\",\n    \"idleTimeoutSeconds\": 120,\n    \"secretBindings\": [\n      {\n        \"key\": \"sandbox_key\",\n        \"label\": \"Sandbox Key\",\n        \"methods\": [\n          \"aiod/run\",\n          \"aiod/submit\",\n          \"aiod/health\"\n        ],\n        \"hint\": \"沙箱内 aiod 网关鉴权 Key（可选）\"\n      }\n    ]\n  },\n  \"setup\": {\n    \"requires\": []\n  },\n  \"tools\": [\n    {\n      \"name\": \"aiod_version\",\n      \"description\": \"查看 aiod-cli 版本号与运行平台信息\",\n      \"parameters\": {\n        \"type\": \"object\",\n        \"properties\": {}\n      }\n    },\n    {\n      \"name\": \"aiod_health\",\n      \"description\": \"检查当前配置的沙箱内 aiod 服务的健康与连通状态\",\n      \"parameters\": {\n        \"type\": \"object\",\n        \"properties\": {\n          \"base\": {\n            \"type\": \"string\",\n            \"description\": \"沙箱网关地址（可选，如不传则使用默认配置中的 SANDBOX_BASE）\"\n          }\n        }\n      }\n    },\n    {\n      \"name\": \"aiod_run\",\n      \"description\": \"执行 aiod-cli 命令（支持 exec, files, pty, browser, misc 等沙箱内部操作）\",\n      \"parameters\": {\n        \"type\": \"object\",\n        \"properties\": {\n          \"cmd\": {\n            \"type\": \"string\",\n            \"description\": \"子命令名称（如 exec, ls, cat, write, upload, download, browser 等）\"\n          },\n          \"args\": {\n            \"type\": \"array\",\n            \"items\": {\n              \"type\": \"string\"\n            },\n            \"description\": \"传递给子命令的参数列表\"\n          },\n          \"base\": {\n            \"type\": \"string\",\n            \"description\": \"针对指定沙箱实例的网关地址（可选）\"\n          }\n        },\n        \"required\": [\n          \"cmd\"\n        ]\n      }\n    },\n    {\n      \"name\": \"aiod_submit\",\n      \"description\": \"异步提交沙箱内的长任务，立即返回 taskId\",\n      \"parameters\": {\n        \"type\": \"object\",\n        \"properties\": {\n          \"cmd\": {\n            \"type\": \"string\",\n            \"description\": \"要异步执行的子命令\"\n          },\n          \"args\": {\n            \"type\": \"array\",\n            \"items\": {\n              \"type\": \"string\"\n            },\n            \"description\": \"参数列表\"\n          },\n          \"base\": {\n            \"type\": \"string\",\n            \"description\": \"沙箱网关地址（可选）\"\n          }\n        },\n        \"required\": [\n          \"cmd\"\n        ]\n      }\n    },\n    {\n      \"name\": \"aiod_log\",\n      \"description\": \"获取由 aiod_submit 提交的后台任务输出日志\",\n      \"parameters\": {\n        \"type\": \"object\",\n        \"properties\": {\n          \"taskId\": {\n            \"type\": \"string\",\n            \"description\": \"任务 ID\"\n          },\n          \"offset\": {\n            \"type\": \"integer\",\n            \"description\": \"起始行/偏移\"\n          }\n        },\n        \"required\": [\n          \"taskId\"\n        ]\n      }\n    },\n    {\n      \"name\": \"aiod_kill\",\n      \"description\": \"终止正在运行的沙箱内异步任务\",\n      \"parameters\": {\n        \"type\": \"object\",\n        \"properties\": {\n          \"taskId\": {\n            \"type\": \"string\",\n            \"description\": \"任务 ID\"\n          }\n        },\n        \"required\": [\n          \"taskId\"\n        ]\n      }\n    }\n  ]\n}", "encoding": "utf-8"}, {"path": "plugins/aiod-cli/manual/guide/MANUAL.md", "content": "# Aiod CLI（沙箱内部系统能力）完整使用手册\n\n`aiod-cli` 是深入 **CubeSandbox 云端沙箱容器内部的底层控制遥控器**。它通过 aiod v2 REST/WebSocket API 与容器内部守护进程通信，提供对沙箱内文件系统、多进程管道、无头浏览器与 MCP Server 的深度操作。\n\n---\n\n## 什么时候主动使用本插件？\n\n当遇到以下任意场景时，Agent 应主动调用 `aiod-cli`：\n1. **沙箱内文件系统深度管理**：\n   - 需要在沙箱内部读取、写入、删除大文件（`cat`, `write`, `rm`）；\n   - 需要向沙箱上传本地项目、或将沙箱内的计算成果打包下载（`upload`, `download`）；\n2. **沙箱内无头浏览器遥控**：\n   - 沙箱内预装了 Chromium 运行时，需要自动化打开网页、提取 DOM、抓取截图或执行页面爬虫时（`browser` 子命令族）；\n3. **沙箱内进程守护与交互终端**：\n   - 需要在沙箱内启动后台守护服务，或者通过 PTY 原语进行实时交互式终端调试；\n4. **启动沙箱内 MCP Server**：\n   - 需要把沙箱内运行的工具包装为 stdio MCP 供上层协议调用（`mcp-server` 模式）。\n\n---\n\n## 配置与准备（网关与鉴权）\n\n- **`SANDBOX_BASE`**：沙箱内部 aiod 服务网关地址（例如通过 `cube new` 输出的 `https://<proxy>/sandbox/<sid>/8080`，可保存在设置页 `/kv`，也可在每次工具调用中通过 `base` 参数覆盖）；\n- **`SANDBOX_KEY`**：沙箱鉴权 Key（可选，若容器配置了安全访问 Token，保存在 safeStorage 中）。\n\n---\n\n## 核心工具与调用指引\n\n本插件在 Cindy 中向 Agent 暴露以下标准化工具：\n\n### 1. `aiod_health`\n检查目标沙箱网关的连接健康状态与 aiod 版本。\n- **参数**：\n  - `base` (string, 可选)：指定特定沙箱的网关地址，缺省使用设置页默认值。\n\n### 2. `aiod_version`\n返回当前 CLI 的版本号与编译目标架构（如 `aarch64-macos`）。\n- **参数**：无\n\n### 3. `aiod_run`\n同步执行 aiod-cli 容器操作命令。\n- **参数**：\n  - `cmd` (string, 必填)：要执行的子命令名称；\n  - `args` (array of string, 可选)：参数列表；\n  - `base` (string, 可选)：指定沙箱实例网关。\n\n#### 常用命令速查：\n- **容器内执行命令**：\n  ```json\n  { \"cmd\": \"exec\", \"args\": [\"python3\", \"-c\", \"import sys; print(sys.version)\"] }\n  ```\n- **读取容器内文件**：\n  ```json\n  { \"cmd\": \"cat\", \"args\": [\"/workspace/output.txt\"] }\n  ```\n- **向容器内写入文件**：\n  ```json\n  { \"cmd\": \"write\", \"args\": [\"/workspace/script.py\", \"print('hello world')\"] }\n  ```\n- **列出容器内指定目录**：\n  ```json\n  { \"cmd\": \"ls\", \"args\": [\"/workspace\"] }\n  ```\n- **遥控浏览器截图**：\n  ```json\n  { \"cmd\": \"browser\", \"args\": [\"screenshot\", \"--url=https://example.com\", \"--out=/workspace/page.png\"] }\n  ```\n\n### 4. 异步长任务三件套（`aiod_submit` / `aiod_log` / `aiod_kill`）\n- `aiod_submit({ cmd: \"exec\", args: [\"npm\", \"run\", \"build\"] })` 启动长时间编译任务；\n- `aiod_log({ taskId: \"...\" })` 实时跟进控制台日志；\n- `aiod_kill({ taskId: \"...\" })` 中止失控或死循环进程。\n\n---\n\n## 常见错误与恢复策略\n\n- `缺少环境变量 SANDBOX_BASE`：说明尚未配置沙箱网关地址。请先通过 `cube-cli new` 获取新建沙箱的网关地址，并在 `aiod_run` 的 `base` 参数中传入，或在设置页保存；\n- `Connection Refused`：说明沙箱可能已被暂停（paused）或正在启动中。请先通过 `cube_run` 确认沙箱处于运行状态。\n
+# Aiod CLI（沙箱内部系统能力）完整使用手册
+
+`aiod-cli` 是深入 **CubeSandbox 云端沙箱容器内部的底层控制遥控器**。它通过 aiod v2 REST/WebSocket API 与容器内部守护进程通信，提供对沙箱内文件系统、多进程管道、无头浏览器与 MCP Server 的深度操作。
+
+---
+
+## 什么时候主动使用本插件？
+
+当遇到以下任意场景时，Agent 应主动调用 `aiod-cli`：
+1. **沙箱内文件系统深度管理**：
+   - 需要在沙箱内部读取、写入、删除大文件（`cat`, `write`, `rm`）；
+   - 需要向沙箱上传本地项目、或将沙箱内的计算成果打包下载（`upload`, `download`）；
+2. **沙箱内无头浏览器遥控**：
+   - 沙箱内预装了 Chromium 运行时，需要自动化打开网页、提取 DOM、抓取截图或执行页面爬虫时（`browser` 子命令族）；
+3. **沙箱内进程守护与交互终端**：
+   - 需要在沙箱内启动后台守护服务，或者通过 PTY 原语进行实时交互式终端调试；
+4. **启动沙箱内 MCP Server**：
+   - 需要把沙箱内运行的工具包装为 stdio MCP 供上层协议调用（`mcp-server` 模式）。
+
+---
+
+## 配置与准备（网关与鉴权）
+
+- **`SANDBOX_BASE`**：沙箱内部 aiod 服务网关地址（例如通过 `cube new` 输出的 `https://<proxy>/sandbox/<sid>/8080`，可保存在设置页 `/kv`，也可在每次工具调用中通过 `base` 参数覆盖）；
+- **`SANDBOX_KEY`**：沙箱鉴权 Key（可选，若容器配置了安全访问 Token，保存在 safeStorage 中）。
+
+---
+
+## 核心工具与调用指引
+
+本插件在 Cindy 中向 Agent 暴露以下标准化工具：
+
+### 1. `aiod_health`
+检查目标沙箱网关的连接健康状态与 aiod 版本。
+- **参数**：
+  - `base` (string, 可选)：指定特定沙箱的网关地址，缺省使用设置页默认值。
+
+### 2. `aiod_version`
+返回当前 CLI 的版本号与编译目标架构（如 `aarch64-macos`）。
+- **参数**：无
+
+### 3. `aiod_run`
+同步执行 aiod-cli 容器操作命令。
+- **参数**：
+  - `cmd` (string, 必填)：要执行的子命令名称；
+  - `args` (array of string, 可选)：参数列表；
+  - `base` (string, 可选)：指定沙箱实例网关。
+
+#### 常用命令速查：
+- **容器内执行命令**：
+  ```json
+  { "cmd": "exec", "args": ["python3", "-c", "import sys; print(sys.version)"] }
+  ```
+- **读取容器内文件**：
+  ```json
+  { "cmd": "cat", "args": ["/workspace/output.txt"] }
+  ```
+- **向容器内写入文件**：
+  ```json
+  { "cmd": "write", "args": ["/workspace/script.py", "print('hello world')"] }
+  ```
+- **列出容器内指定目录**：
+  ```json
+  { "cmd": "ls", "args": ["/workspace"] }
+  ```
+- **遥控浏览器截图**：
+  ```json
+  { "cmd": "browser", "args": ["screenshot", "--url=https://example.com", "--out=/workspace/page.png"] }
+  ```
+
+### 4. 异步长任务三件套（`aiod_submit` / `aiod_log` / `aiod_kill`）
+- `aiod_submit({ cmd: "exec", args: ["npm", "run", "build"] })` 启动长时间编译任务；
+- `aiod_log({ taskId: "..." })` 实时跟进控制台日志；
+- `aiod_kill({ taskId: "..." })` 中止失控或死循环进程。
+
+---
+
+## 常见错误与恢复策略
+
+- `缺少环境变量 SANDBOX_BASE`：说明尚未配置沙箱网关地址。请先通过 `cube-cli new` 获取新建沙箱的网关地址，并在 `aiod_run` 的 `base` 参数中传入，或在设置页保存；
+- `Connection Refused`：说明沙箱可能已被暂停（paused）或正在启动中。请先通过 `cube_run` 确认沙箱处于运行状态。

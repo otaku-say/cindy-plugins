@@ -1,1 +1,58 @@
-# Cindy Plugins 入驻与开发规范（高标准准则）\n\n为确保 `cindy-plugins` 市场内所有插件的长期稳定性、跨架构通用性与最高安全等级，任何新增插件必须严格遵守以下工程规范：\n\n---\n\n## 平台与芯片架构命名硬规则（必须严格一致）\n\n所有涉及操作系统与芯片架构的**最终二进制名称、相关的目录名称、分支名称、产物命名及清单配置**，必须无条件遵循以下全称与标准命名规范：\n\n| 平台规范标识 (`platform`) | 系统全称 (`os`) | 架构全称 (`arch`) | 对应二进制目录范式 | 平台瘦身分支范式 |\n| :--- | :--- | :--- | :--- | :--- |\n| **`macos-arm64`** | `macos` | `arm64` | `bin/macos-arm64/` | `plat/macos-arm64` |\n| **`macos-amd64`** | `macos` | `amd64` | `bin/macos-amd64/` | `plat/macos-amd64` |\n| **`windows-amd64`** | `windows` | `amd64` | `bin/windows-amd64/` | `plat/windows-amd64` |\n| **`windows-arm64`** | `windows` | `arm64` | `bin/windows-arm64/` | `plat/windows-arm64` |\n| **`linux-amd64`** | `linux` | `amd64` | `bin/linux-amd64/` | `plat/linux-amd64` |\n| **`linux-arm64`** | `linux` | `arm64` | `bin/linux-arm64/` | `plat/linux-arm64` |\n\n> **严禁在目录、产物或分支中混用 `darwin`、`win32`、`x64`、`x86_64`、`aarch64` 等内部底层代号。**\n\n---\n\n## 插件入驻 Checklist\n\n### 1. 清单与身份规范 (`ghost.json`)\n- [ ] `schemaVersion` 必须为 `3`；\n- [ ] `minCindyVersion` 必须如实填写插件依赖的首个 Cindy 正式版本（如 `3.0.0`）；\n- [ ] `id` 格式：小写字母、数字与连字符，1–32 位，仓库内全局唯一；\n- [ ] `command`：为用户提供显式调用点名的指令（如 `cube` / `aiod`）；\n- [ ] `whenToUse`：**严格仅枚举意图场景**（<=300 字符），禁止包含调用规则或强制约束；\n- [ ] `icon`：必须提供 `assets/icon.png`（推荐 128x128 像素标准 PNG，严禁使用 SVG）。\n\n### 2. 凭证隔离与安全模型\n- [ ] 敏感凭证（Token / Secret Key）**严禁**明文存储于配置文件或源码；\n- [ ] 必须声明在 `node.secretBindings`（上限 4 条），存入主机 `safeStorage`；\n- [ ] 必须配套提供高质量的 `settings.html` 与外挂的 `settings.js`（**严禁在 HTML 内联脚本**，严格满足 CSP 策略）；\n- [ ] 保存自定义配置必须向 `/kv` 发起全量 JSON Object 的 `PUT` 请求（禁止向 `/kv/<key>` 发送标量）；\n- [ ] 密码输入框在读取保存状态时只回显已保存标记或尾号，不得回显明文。\n\n### 3. 多平台全架构矩阵分发（杜绝臃肿脂肪包）\n- [ ] 凡包含编译型二进制或原生 CLI 的插件，必须支持上述 6 大平台全称架构规范；\n- [ ] 在 `scripts/manifest.json` 的 `plugins` 节点中注册该插件的 upstream 发布资产模板与产物名称；\n- [ ] 由 `scripts/build-market.py` 自动化组装单平台目录并打出 `<id>-<version>-<os>-<arch>.cindy`，包体控制在 1MB 左右；\n- [ ] 自动化流水线负责自动推送到对应的 `plat/<os>-<arch>` 专属轻量分支。\n\n### 4. 进程与长任务控制\n- [ ] 随包 Node Worker（`node/worker.cjs`）必须使用标准的逐行 JSON-RPC 2.0 协议；\n- [ ] `process.stdout` **严禁**输出除 JSON-RPC 协议消息外的任何调试日志，所有排障日志一律输出到 `process.stderr`；\n- [ ] 针对耗时操作（沙箱创建、镜像拉取、代码运行），必须提供三件套工具：\n  - `*_submit`：异步提交并返回 `taskId`；\n  - `*_log`：流式/分页获取日志（Worker 必须实现环形日志缓冲，防止内存膨胀）；\n  - `*_kill`：优雅终止任务；\n- [ ] 请求配置必须声明 `maxTotalMs: 900000`（最长 15 分钟），启用“有输出即续期”机制。\n\n---\n\n## 插件添加步骤\n\n1. 在 `plugins/<plugin-id>/` 目录下搭建源码骨架：\n   ```text\n   plugins/<plugin-id>/\n   ├── ghost.json\n   ├── main.js\n   ├── settings.html\n   ├── settings.js\n   ├── assets/\n   │   └── icon.png\n   └── node/\n       └── worker.cjs\n   ```\n2. 在 `scripts/manifest.json` 中追加插件定义（必须使用标准平台名称）。\n3. 在本地运行测试构建：\n   ```bash\n   python3 scripts/build-market.py\n   ```\n4. 验证生成的 `.agents/plugins/marketplace.json` 与 `dist/packages/` 中的各架构 `.cindy` 文件；\n5. 提交 PR 到 `main` 分支，由 GitHub Actions 自动化触发全架构 Release 发布与平台分支推送。\n
+# Cindy Plugins 入驻与开发规范（高标准准则）
+
+为确保 `cindy-plugins` 市场内所有插件的长期稳定性、跨架构通用性与最高安全等级，任何新增插件必须严格遵守以下工程规范：
+
+---
+
+## 平台与芯片架构命名硬规则（必须严格一致）
+
+所有涉及操作系统与芯片架构的**最终二进制名称、相关的目录名称、分支名称、产物命名及清单配置**，必须无条件遵循以下全称与标准命名规范：
+
+| 平台规范标识 (`platform`) | 系统全称 (`os`) | 架构全称 (`arch`) | 对应二进制目录范式 | 平台瘦身分支范式 |
+| :--- | :--- | :--- | :--- | :--- |
+| **`macos-arm64`** | `macos` | `arm64` | `bin/macos-arm64/` | `plat/macos-arm64` |
+| **`macos-amd64`** | `macos` | `amd64` | `bin/macos-amd64/` | `plat/macos-amd64` |
+| **`windows-amd64`** | `windows` | `amd64` | `bin/windows-amd64/` | `plat/windows-amd64` |
+| **`windows-arm64`** | `windows` | `arm64` | `bin/windows-arm64/` | `plat/windows-arm64` |
+| **`linux-amd64`** | `linux` | `amd64` | `bin/linux-amd64/` | `plat/linux-amd64` |
+| **`linux-arm64`** | `linux` | `arm64` | `bin/linux-arm64/` | `plat/linux-arm64` |
+
+> **严禁在目录、产物或分支中混用 `darwin`、`win32`、`x64`、`x86_64`、`aarch64` 等内部底层代号。**
+
+---
+
+## 插件入驻 Checklist
+
+### 1. 清单与身份规范 (`ghost.json`)
+- [ ] `schemaVersion` 必须为 `3`；
+- [ ] `minCindyVersion` 必须如实填写插件依赖的首个 Cindy 正式版本（如 `3.0.0`）；
+- [ ] `id` 格式：小写字母、数字与连字符，1–32 位，仓库内全局唯一；
+- [ ] `command`：为用户提供显式调用点名的指令（如 `cube` / `aiod`）；
+- [ ] `whenToUse`：**严格仅枚举意图场景**（<=300 字符），禁止包含调用规则或强制约束；
+- [ ] `icon`：必须提供 `assets/icon.png`（推荐 128x128 像素标准 PNG，严禁使用 SVG）。
+
+### 2. 凭证隔离与安全模型
+- [ ] 敏感凭证（Token / Secret Key）**严禁**明文存储于配置文件或源码；
+- [ ] 必须声明在 `node.secretBindings`（上限 4 条），存入主机 `safeStorage`；
+- [ ] 必须配套提供高质量的 `settings.html` 与外挂的 `settings.js`（**严禁在 HTML 内联脚本**，严格满足 CSP 策略）；
+- [ ] 保存自定义配置必须向 `/kv` 发起全量 JSON Object 的 `PUT` 请求（禁止向 `/kv/<key>` 发送标量）；
+- [ ] 密码输入框在读取保存状态时只回显已保存标记或尾号，不得回显明文。
+
+### 3. 多平台全架构矩阵分发（杜绝臃肿脂肪包）
+- [ ] 凡包含编译型二进制或原生 CLI 的插件，必须支持上述 6 大平台全称架构规范；
+- [ ] 在 `scripts/manifest.json` 的 `plugins` 节点中注册该插件的 upstream 发布资产模板与产物名称；
+- [ ] 由 `scripts/build-market.py` 自动化组装单平台目录并打出 `<id>-<version>-<os>-<arch>.cindy`，包体控制在 1MB 左右；
+- [ ] 自动化流水线负责自动推送到对应的 `plat/<os>-<arch>` 专属轻量分支。
+
+### 4. 进程与长任务控制
+- [ ] 随包 Node Worker（`node/worker.cjs`）必须使用标准的逐行 JSON-RPC 2.0 协议；
+- [ ] `process.stdout` **严禁**输出除 JSON-RPC 协议消息外的任何调试日志，所有排障日志一律输出到 `process.stderr`；
+- [ ] 针对耗时操作（沙箱创建、镜像拉取、代码运行），必须提供三件套工具：
+  - `*_submit`：异步提交并返回 `taskId`；
+  - `*_log`：流式/分页获取日志（Worker 必须实现环形日志缓冲，防止内存膨胀）；
+  - `*_kill`：优雅终止任务；
+- [ ] 请求配置必须声明 `maxTotalMs: 900000`（最长 15 分钟），启用“有输出即续期”机制。
+
+---
+
+## 插件添加步���K�9g*Y�[���Y�[�ZY��9��oey."��+yn�9� zj�9����&��^�Y�[���Y�[�ZY�8�'8� 8� ������ۂ�8�'8� 8� XZ[���8�'8� 8� �][��˚[�8�'8� 8� �][��˚�8�'8� 8� \��]�8� �8�%8� 8� X�ۋ��8�%8� 8� ��K8�%8� 8� �ܚ�\��ڜ���9g*�ܚ\��X[�Y�\����ۘ9.+z/�yb�9��.��k��.b{�"9o�zhn�/o��*9�!�a�nl�c�9d#y��;�"x� ��ˈ9g*9�+9g,:/�:(c9�b�+�y��9n��&���\��]ی��ܚ\�؝Z[[X\��]�B���:j�:+�y�'��$9��Y�[���Y�[���X\��]X�K���ۘ9.#�\��X��Y�\��9.+y�9d!9�������[�X9���.���&K�9��9.��9b,XZ[�9b!��+��#9�,H�]X�X�[ۜ�:!�b�9c%�)�c�yaj9������[X\�H9c�yn �.#�nl�c�9b!��+���:` x� �
