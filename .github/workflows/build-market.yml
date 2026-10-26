@@ -70,8 +70,8 @@ jobs:
       - name: 发布各平台 .cindy 资产到 Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v0.1.2
-          name: "v0.1.2 - 补齐 Windows 平台全架构二进制，实现 6 大平台全量双插件闭环"
+          tag_name: v0.1.3
+          name: "v0.1.3 - 修复 cindy.send 交卷协议与网关环境变量兜底，彻底解决调用挂起超时问题"
           files: dist/packages/*
           make_latest: true
         env:

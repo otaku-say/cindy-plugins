@@ -12,15 +12,15 @@ async function getKvConfig() {
 }
 
 cindy.onHostMessage(async (msg) => {
-  if (msg.type !== 'tool-call') return;
+  if (!msg || msg.type !== 'tool-call') return;
 
-  const { tool, args, callId, id } = msg;
+  const { tool, args, callId } = msg;
 
   try {
     const kv = await getKvConfig();
     const env = {
-      CUBESANDBOX_API_URL: kv.CUBESANDBOX_API_URL || '',
-      CUBESANDBOX_PROXY_URL: kv.CUBESANDBOX_PROXY_URL || ''
+      CUBESANDBOX_API_URL: kv.CUBESANDBOX_API_URL || 'https://cubesandbox-api.4a8a.com',
+      CUBESANDBOX_PROXY_URL: kv.CUBESANDBOX_PROXY_URL || 'https://cubesandbox-proxy.4a8a.com'
     };
 
     if (tool === 'cube_version') {
@@ -32,7 +32,7 @@ cindy.onHostMessage(async (msg) => {
         timeoutMs: 15000
       });
       if (!resp.ok) throw new Error(resp.message || '执行失败');
-      cindy.reply({ id, result: resp.result });
+      cindy.send({ type: 'tool-result', callId, ok: true, result: resp.result });
       return;
     }
 
@@ -45,7 +45,7 @@ cindy.onHostMessage(async (msg) => {
         timeoutMs: 30000
       });
       if (!resp.ok) throw new Error(resp.message || '健康检查失败');
-      cindy.reply({ id, result: resp.result });
+      cindy.send({ type: 'tool-result', callId, ok: true, result: resp.result });
       return;
     }
 
@@ -61,7 +61,7 @@ cindy.onHostMessage(async (msg) => {
         maxTotalMs: 900000
       });
       if (!resp.ok) throw new Error(resp.message || '执行失败');
-      cindy.reply({ id, result: resp.result });
+      cindy.send({ type: 'tool-result', callId, ok: true, result: resp.result });
       return;
     }
 
@@ -76,7 +76,7 @@ cindy.onHostMessage(async (msg) => {
         timeoutMs: 15000
       });
       if (!resp.ok) throw new Error(resp.message || '异步提交失败');
-      cindy.reply({ id, result: resp.result });
+      cindy.send({ type: 'tool-result', callId, ok: true, result: resp.result });
       return;
     }
 
@@ -89,7 +89,7 @@ cindy.onHostMessage(async (msg) => {
         timeoutMs: 15000
       });
       if (!resp.ok) throw new Error(resp.message || '读取日志失败');
-      cindy.reply({ id, result: resp.result });
+      cindy.send({ type: 'tool-result', callId, ok: true, result: resp.result });
       return;
     }
 
@@ -102,12 +102,12 @@ cindy.onHostMessage(async (msg) => {
         timeoutMs: 15000
       });
       if (!resp.ok) throw new Error(resp.message || '终止任务失败');
-      cindy.reply({ id, result: resp.result });
+      cindy.send({ type: 'tool-result', callId, ok: true, result: resp.result });
       return;
     }
 
-    cindy.reply({ id, error: { code: -32601, message: `未知工具: ${tool}` } });
+    cindy.send({ type: 'tool-result', callId, ok: false, message: `未知工具: ${tool}` });
   } catch (err) {
-    cindy.reply({ id, error: { code: -32000, message: err.message || String(err) } });
+    cindy.send({ type: 'tool-result', callId, ok: false, message: err.message || String(err) });
   }
 });

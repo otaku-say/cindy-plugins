@@ -4,7 +4,7 @@
   "name": "Aiod CLI",
   "description": "CubeSandbox 沙箱内 aiod v2 API 遥控器：进程执行、文件管理、浏览器与 MCP",
   "whenToUse": "需要深入 CubeSandbox 沙箱内执行命令、管理文件、遥控浏览器、执行代码或启动 MCP Server 时",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "minCindyVersion": "3.0.0",
   "entry": "main.js",
   "command": "aiod",

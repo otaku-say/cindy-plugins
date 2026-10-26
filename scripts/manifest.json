@@ -52,7 +52,7 @@
       "id": "cube-cli",
       "name": "Cube CLI",
       "description": "CubeSandbox 控制面遥控器：创建、管理沙箱生命周期、端口与文件操作",
-      "version": "0.1.2",
+      "version": "0.1.3",
       "command": "cube",
       "author": "otaku-say",
       "tags": [
@@ -72,7 +72,7 @@
       "id": "aiod-cli",
       "name": "Aiod CLI",
       "description": "CubeSandbox 沙箱内 aiod v2 API 遥控器：进程执行、文件管理、浏览器与 MCP",
-      "version": "0.1.2",
+      "version": "0.1.3",
       "command": "aiod",
       "author": "otaku-say",
       "tags": [

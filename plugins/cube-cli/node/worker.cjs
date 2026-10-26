@@ -103,7 +103,15 @@ function findBinary() {
 const tasks = new Map(); // taskId -> { process, logs: [], exitCode: null, completed: false, startTime }
 
 function buildEnv(request) {
-  const env = { ...process.env, ...(request.params?.env || {}) };
+  const defaultApiUrl = 'https://cubesandbox-api.4a8a.com';
+  const defaultProxyUrl = 'https://cubesandbox-proxy.4a8a.com';
+  const passedEnv = request.params?.env || {};
+  const env = {
+    ...process.env,
+    CUBESANDBOX_API_URL: passedEnv.CUBESANDBOX_API_URL || process.env.CUBESANDBOX_API_URL || defaultApiUrl,
+    CUBESANDBOX_PROXY_URL: passedEnv.CUBESANDBOX_PROXY_URL || process.env.CUBESANDBOX_PROXY_URL || defaultProxyUrl,
+    ...passedEnv
+  };
   const secretKey = request.cindy?.secrets?.cubesandbox_api_key;
   if (secretKey) {
     env.CUBESANDBOX_API_KEY = secretKey;
