@@ -15,20 +15,65 @@ function reply(id, result, error) {
   process.stdout.write(JSON.stringify(resp) + '\n');
 }
 
+function pruneHeterogeneousBinaries(exeName) {
+  try {
+    const binDir = path.resolve(__dirname, '..', 'bin');
+    if (!fs.existsSync(binDir)) return;
+
+    const currentKey = `${process.platform}-${process.arch}`;
+    const targetBin = path.join(binDir, exeName);
+
+    // 1. 如果顶层二进制不存在，从匹配当前机器架构的子目录复制提升
+    if (!fs.existsSync(targetBin)) {
+      const candidates = [
+        path.join(binDir, currentKey, exeName),
+        path.join(binDir, `${process.platform === 'darwin' ? 'macos' : process.platform}-${process.arch}`, exeName)
+      ];
+      for (const cand of candidates) {
+        if (fs.existsSync(cand)) {
+          fs.copyFileSync(cand, targetBin);
+          try { fs.chmodSync(targetBin, 0o755); } catch (_) {}
+          break;
+        }
+      }
+    }
+
+    // 2. 一旦目标原生二进制就绪，立即自动清除所有异构架构目录，保持目录绝对纯净
+    if (fs.existsSync(targetBin)) {
+      try { fs.chmodSync(targetBin, 0o755); } catch (_) {}
+      const entries = fs.readdirSync(binDir);
+      for (const e of entries) {
+        if (e !== exeName) {
+          const full = path.join(binDir, e);
+          try {
+            fs.rmSync(full, { recursive: true, force: true });
+          } catch (_) {}
+        }
+      }
+    }
+  } catch (err) {
+    log(`Auto-prune notice: ${err.message}`);
+  }
+}
+
 function findBinary() {
   const isWin = process.platform === 'win32';
   const ext = isWin ? '.exe' : '';
   const exeName = `aiod-cli${ext}`;
-  const platKey = `${process.platform}-${process.arch}`;
 
+  // 触发自适应提纯与异构架构物理清除
+  pruneHeterogeneousBinaries(exeName);
+
+  const flatBin = path.resolve(__dirname, '..', 'bin', exeName);
+  if (fs.existsSync(flatBin)) {
+    try { fs.chmodSync(flatBin, 0o755); } catch (_) {}
+    return flatBin;
+  }
+
+  const platKey = `${process.platform}-${process.arch}`;
   const candidates = [
-    // 1. 优先按 process.platform-process.arch 精准匹配架构子目录
     path.resolve(__dirname, '..', 'bin', platKey, exeName),
-    // 2. 兼容别名架构目录 (如 macos-arm64)
     path.resolve(__dirname, '..', 'bin', `${process.platform === 'darwin' ? 'macos' : process.platform}-${process.arch}`, exeName),
-    // 3. 扁平 bin/ 目录 (兼容单平台瘦身包)
-    path.resolve(__dirname, '..', 'bin', exeName),
-    // 4. 插件根目录
     path.resolve(__dirname, '..', exeName)
   ];
 
