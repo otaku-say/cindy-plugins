@@ -43,32 +43,7 @@ jobs:
       - name: 推送单平台轻量分支 (plat/*)
         shell: bash
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          
-          # 读取平台列表
-          platforms=$(python3 -c "import json; print(' '.join(json.load(open('scripts/manifest.json'))['platforms'].keys()))")
-          
-          for plat in $platforms; do
-            echo "=== 更新平台分支: plat/$plat ==="
-            plat_dir="dist/platforms/$plat"
-            if [ -d "$plat_dir" ]; then
-              # 创建临时分支或检出 orphan 分支
-              tmp_branch="tmp-plat-$plat"
-              git checkout --orphan "$tmp_branch"
-              git rm -rf . >/dev/null 2>&1 || true
-              
-              # 复制该平台专属文件
-              cp -r $plat_dir/* .
-              cp -r $plat_dir/.* . 2>/dev/null || true
-              
-              # 提交并强制推送到远端对应平台分支
-              git add -A
-              git commit -m "chore(release): auto-assembled $plat packages"
-              git push origin "$tmp_branch:plat/$plat" --force
-              
-              # 切回 main
-              git checkout main
-              git branch -D "$tmp_branch"
-            fi
-          done
+          python3 scripts/build-market.py --push-branches
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+

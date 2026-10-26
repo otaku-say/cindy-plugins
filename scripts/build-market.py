@@ -240,5 +240,42 @@ def build_all():
         kb = meta["size"] / 1024
         print(f"  - {meta['filename']:36} | {kb:6.1f} KB | SHA256: {meta['sha256'][:12]}...")
 
+def push_all_branches(manifest):
+    platforms = manifest["platforms"]
+    token = os.environ.get("GITHUB_TOKEN")
+    owner = manifest["owner"]
+    repo = manifest["repo"]
+    if token:
+        remote_url = f"https://x-access-token:{token}@github.com/{owner}/{repo}.git"
+    else:
+        remote_url = "origin"
+
+    print("=== 开始更新各平台轻量分支 (plat/*) ===")
+    for plat_name in platforms.keys():
+        plat_dir = PLATFORMS_DIST / plat_name
+        if not plat_dir.exists():
+            continue
+        print(f"[*] 推送平台分支: plat/{plat_name} ...")
+        # 排除可能遗留的 .git
+        git_dir = plat_dir / ".git"
+        if git_dir.exists():
+            shutil.rmtree(git_dir)
+
+        import subprocess
+        subprocess.run(["git", "init"], cwd=plat_dir, check=True, stdout=subprocess.DEVNULL)
+        subprocess.run(["git", "config", "user.name", "github-actions[bot]"], cwd=plat_dir, check=True)
+        subprocess.run(["git", "config", "user.email", "github-actions[bot]@users.noreply.github.com"], cwd=plat_dir, check=True)
+        subprocess.run(["git", "add", "-A"], cwd=plat_dir, check=True)
+        subprocess.run(["git", "commit", "-m", f"chore(release): auto-assembled {plat_name} packages"], cwd=plat_dir, check=True, stdout=subprocess.DEVNULL)
+        res = subprocess.run(["git", "push", remote_url, f"HEAD:refs/heads/plat/{plat_name}", "--force"], cwd=plat_dir)
+        if res.returncode == 0:
+            print(f"  [OK] plat/{plat_name} 推送成功！")
+        else:
+            print(f"  [FAIL] plat/{plat_name} 推送失败！")
+
 if __name__ == "__main__":
-    build_all()
+    if "--push-branches" in sys.argv:
+        m = load_manifest()
+        push_all_branches(m)
+    else:
+        build_all()
