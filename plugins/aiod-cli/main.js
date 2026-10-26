@@ -27,7 +27,7 @@ cindy.onHostMessage(async (msg) => {
         method: 'aiod/run',
         params: { cmd: 'version', args: [], env },
         callId,
-        cancelWithCall: true,
+        cancelWithCall: false,
         timeoutMs: 15000
       });
       if (!resp.ok) throw new Error(resp.message || '执行失败');
@@ -40,7 +40,7 @@ cindy.onHostMessage(async (msg) => {
         method: 'aiod/health',
         params: { env },
         callId,
-        cancelWithCall: true,
+        cancelWithCall: false,
         timeoutMs: 30000
       });
       if (!resp.ok) throw new Error(resp.message || '健康检查失败');
@@ -55,7 +55,7 @@ cindy.onHostMessage(async (msg) => {
         method: 'aiod/run',
         params: { cmd, args: cmdArgs, env },
         callId,
-        cancelWithCall: true,
+        cancelWithCall: false,
         timeoutMs: 60000,
         maxTotalMs: 900000
       });
@@ -84,7 +84,7 @@ cindy.onHostMessage(async (msg) => {
         method: 'aiod/log',
         params: { taskId: args.taskId, offset: args.offset || 0 },
         callId,
-        cancelWithCall: true,
+        cancelWithCall: false,
         timeoutMs: 15000
       });
       if (!resp.ok) throw new Error(resp.message || '读取日志失败');
@@ -97,7 +97,7 @@ cindy.onHostMessage(async (msg) => {
         method: 'aiod/kill',
         params: { taskId: args.taskId },
         callId,
-        cancelWithCall: true,
+        cancelWithCall: false,
         timeoutMs: 15000
       });
       if (!resp.ok) throw new Error(resp.message || '终止任务失败');

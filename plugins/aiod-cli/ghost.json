@@ -4,7 +4,7 @@
   "name": "Aiod CLI",
   "description": "CubeSandbox 沙箱内 aiod v2 API 遥控器：进程执行、文件管理、浏览器与 MCP",
   "whenToUse": "需要深入 CubeSandbox 沙箱内执行命令、管理文件、遥控浏览器、执行代码或启动 MCP Server 时",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "minCindyVersion": "3.0.0",
   "entry": "main.js",
   "command": "aiod",
@@ -23,15 +23,7 @@
     "entry": "node/worker.cjs",
     "protocol": "json-rpc-stdio",
     "lifecycle": "on-demand",
-    "idleTimeoutSeconds": 120,
-    "secretBindings": [
-      {
-        "key": "sandbox_key",
-        "label": "Sandbox Key",
-        "methods": ["aiod/run", "aiod/submit", "aiod/health"],
-        "hint": "沙箱内 aiod 网关鉴权 Key（可选）"
-      }
-    ]
+    "idleTimeoutSeconds": 120
   },
   "setup": {
     "requires": []
@@ -78,7 +70,7 @@
             "description": "针对指定沙箱实例的网关地址（可选）"
           }
         },
-        "required": ["cmd"]
+        "required": [\"cmd\"]
       }
     },
     {
@@ -91,7 +83,7 @@
           "args": { "type": "array", "items": { "type": "string" }, "description": "参数列表" },
           "base": { "type": "string", "description": "沙箱网关地址（可选）" }
         },
-        "required": ["cmd"]
+        "required": [\"cmd\"]
       }
     },
     {
@@ -103,7 +95,7 @@
           "taskId": { "type": "string", "description": "任务 ID" },
           "offset": { "type": "integer", "description": "起始行/偏移" }
         },
-        "required": ["taskId"]
+        "required": [\"taskId\"]
       }
     },
     {
@@ -114,7 +106,7 @@
         "properties": {
           "taskId": { "type": "string", "description": "任务 ID" }
         },
-        "required": ["taskId"]
+        "required": [\"taskId\"]
       }
     }
   ]
