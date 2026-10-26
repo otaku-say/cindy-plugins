@@ -12,10 +12,14 @@
       --border: var(--border-default, #d0d7de);
       --primary: #0969da;
       --primary-hover: #0856b3;
+      --primary-soft: rgba(9, 105, 218, 0.08);
       --danger: #cf222e;
       --danger-hover: #a40e26;
+      --danger-soft: rgba(207, 34, 46, 0.08);
       --card-bg: var(--surface-elevated, #f6f8fa);
       --input-bg: var(--surface, #ffffff);
+      --pill-bg: rgba(127, 127, 127, 0.08);
+      --pill-border: rgba(127, 127, 127, 0.18);
     }
     @media (prefers-color-scheme: dark) {
       :root {
@@ -25,10 +29,14 @@
         --border: var(--border-default, #30363d);
         --primary: #2f81f7;
         --primary-hover: #58a6ff;
+        --primary-soft: rgba(47, 129, 247, 0.12);
         --danger: #f85149;
         --danger-hover: #da3633;
+        --danger-soft: rgba(248, 81, 73, 0.12);
         --card-bg: var(--surface-elevated, #161b22);
         --input-bg: var(--surface, #0d1117);
+        --pill-bg: rgba(255, 255, 255, 0.05);
+        --pill-border: rgba(255, 255, 255, 0.12);
       }
     }
     * { box-sizing: border-box; }
@@ -61,26 +69,35 @@
     }
     .full-width { grid-column: 1 / -1; }
     label { display: block; font-size: 11px; font-weight: 600; margin-bottom: 4px; color: var(--fg-muted); }
-    input[type="text"], input[type="password"] {
+    input[type="text"], input[type="password"], textarea {
       width: 100%;
-      padding: 6px 10px;
+      padding: 7px 10px;
       font-size: 12px;
+      font-family: inherit;
       border: 1px solid var(--border);
       border-radius: 6px;
       background: var(--input-bg);
       color: var(--fg);
       outline: none;
-      transition: border-color 0.15s;
+      transition: border-color 0.15s, box-shadow 0.15s;
     }
-    input:focus { border-color: var(--primary); }
+    textarea {
+      resize: vertical;
+      min-height: 52px;
+      line-height: 1.4;
+    }
+    input:focus, textarea:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 2px var(--primary-soft);
+    }
 
     /* 按钮组 */
     .btn {
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      gap: 6px;
-      padding: 6px 12px;
+      gap: 5px;
+      padding: 5px 12px;
       font-size: 12px;
       font-weight: 500;
       border-radius: 6px;
@@ -89,21 +106,51 @@
       color: var(--fg);
       cursor: pointer;
       user-select: none;
+      white-space: nowrap;
       transition: background 0.15s, border-color 0.15s;
     }
     .btn:hover { background: var(--border); }
     .btn-primary { background: var(--primary); color: #ffffff; border-color: transparent; }
     .btn-primary:hover { background: var(--primary-hover); }
-    .btn-danger { color: var(--danger); border-color: transparent; background: transparent; }
-    .btn-danger:hover { background: rgba(207, 34, 46, 0.1); }
     .btn-sm { padding: 3px 8px; font-size: 11px; }
+
+    /* 图标按钮样式 */
+    .icon-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 28px;
+      height: 28px;
+      border-radius: 6px;
+      border: 1px solid transparent;
+      background: transparent;
+      color: var(--fg-muted);
+      cursor: pointer;
+      transition: all 0.15s ease;
+      padding: 0;
+      flex-shrink: 0;
+    }
+    .icon-btn:hover {
+      background: var(--card-bg);
+      color: var(--fg);
+      border-color: var(--border);
+    }
+    .icon-btn.edit-btn:hover {
+      color: var(--primary);
+      background: var(--primary-soft);
+      border-color: transparent;
+    }
+    .icon-btn.del-btn:hover {
+      color: var(--danger);
+      background: var(--danger-soft);
+      border-color: transparent;
+    }
 
     /* 搜索栏与过滤 */
     .toolbar {
       display: flex;
       align-items: center;
-      justify-content: space-between;
-      gap: 10px;
+      gap: 8px;
       margin-bottom: 12px;
     }
     .search-box {
@@ -120,46 +167,107 @@
       transform: translateY(-50%);
       color: var(--fg-muted);
       pointer-events: none;
+      display: flex;
+      align-items: center;
     }
 
-    /* 变量表格/列表 */
-    .env-table {
-      width: 100%;
-      border-collapse: collapse;
+    /* 双行列表项结构 */
+    .env-list-container {
       border: 1px solid var(--border);
       border-radius: 8px;
+      background: var(--bg);
       overflow: hidden;
-      font-size: 12px;
     }
-    .env-table th, .env-table td {
-      padding: 8px 12px;
-      text-align: left;
+    .env-item {
+      padding: 10px 14px;
       border-bottom: 1px solid var(--border);
+      transition: background 0.12s ease;
+      display: flex;
+      flex-col;
+      gap: 6px;
+      flex-direction: column;
     }
-    .env-table th {
-      background: var(--card-bg);
-      color: var(--fg-muted);
-      font-weight: 600;
-      font-size: 11px;
+    .env-item:last-child {
+      border-bottom: none;
     }
-    .env-table tr:last-child td { border-bottom: none; }
-    .env-table tr:hover { background: rgba(127, 127, 127, 0.05); }
+    .env-item:hover {
+      background: rgba(127, 127, 127, 0.04);
+    }
+
+    /* 第一行：Key + Value + 操作区 */
+    .env-row-main {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+    .env-left-cluster {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-width: 0;
+      flex-wrap: wrap;
+    }
     .key-badge {
       font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
       font-weight: 600;
+      font-size: 13px;
       color: var(--primary);
+      letter-spacing: 0.3px;
     }
-    .val-cell {
-      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-      color: var(--fg-muted);
-      display: flex;
+
+    /* 脱敏值胶囊小组件 */
+    .val-pill {
+      display: inline-flex;
       align-items: center;
-      gap: 6px;
+      gap: 4px;
+      background: var(--pill-bg);
+      border: 1px solid var(--pill-border);
+      padding: 2px 8px;
+      border-radius: 6px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 11px;
+      color: var(--fg-muted);
     }
-    .memo-text { color: var(--fg-muted); }
+    .val-text {
+      user-select: text;
+    }
+    .pill-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 2px;
+      background: transparent;
+      border: none;
+      color: var(--fg-muted);
+      cursor: pointer;
+      border-radius: 3px;
+      transition: color 0.12s;
+    }
+    .pill-btn:hover {
+      color: var(--fg);
+    }
+
+    /* 操作图标区域（横向紧凑） */
+    .env-actions {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      flex-shrink: 0;
+    }
+
+    /* 第二行：备注说明 */
+    .env-row-memo {
+      font-size: 12px;
+      color: var(--fg-muted);
+      line-height: 1.4;
+      word-break: break-word;
+      padding-left: 2px;
+    }
+
     .empty-tip {
       text-align: center;
-      padding: 24px;
+      padding: 32px 16px;
       color: var(--fg-muted);
       font-size: 12px;
     }
@@ -169,7 +277,7 @@
       display: flex;
       align-items: center;
       justify-content: space-between;
-      margin-top: 10px;
+      margin-top: 12px;
       font-size: 12px;
       color: var(--fg-muted);
     }
@@ -217,7 +325,7 @@
       </div>
       <div class="full-width">
         <label for="envMemo">备注说明 (Memo)</label>
-        <input type="text" id="envMemo" placeholder="例如: 个人 GitHub 账户 PAT，含 repo 和 workflow 权限" autocomplete="off" />
+        <textarea id="envMemo" rows="2" placeholder="例如: 个人 GitHub 账户 PAT，含 repo 和 workflow 权限" autocomplete="off"></textarea>
       </div>
     </div>
     <div style="display: flex; justify-content: flex-end; gap: 8px;">
@@ -228,26 +336,20 @@
   <!-- 搜索与工具栏 -->
   <div class="toolbar">
     <div class="search-box">
-      <span class="search-icon">🔍</span>
+      <span class="search-icon">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+      </span>
       <input type="text" id="searchInput" placeholder="搜索变量名或备注..." />
     </div>
-    <button id="refreshBtn" class="btn">刷新</button>
+    <button id="refreshBtn" class="icon-btn" title="刷新列表" aria-label="刷新列表">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 21h5v-5"/></svg>
+    </button>
   </div>
 
-  <!-- 变量表格 -->
-  <table class="env-table">
-    <thead>
-      <tr>
-        <th style="width: 25%;">变量键名</th>
-        <th style="width: 30%;">当前键值</th>
-        <th>备注</th>
-        <th style="width: 110px; text-align: right;">操作</th>
-      </tr>
-    </thead>
-    <tbody id="envTableBody">
-      <tr><td colspan="4" class="empty-tip">正在加载环境变量...</td></tr>
-    </tbody>
-  </table>
+  <!-- 双行结构列表容器 -->
+  <div class="env-list-container" id="envListContainer">
+    <div class="empty-tip">正在加载环境变量...</div>
+  </div>
 
   <!-- 分页 -->
   <div class="pagination">

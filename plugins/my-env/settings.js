@@ -3,6 +3,13 @@
 (function () {
   'use strict';
 
+  // SVG 图标模板
+  const SVG_EYE = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>';
+  const SVG_EYE_OFF = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.88 9.88a3 3 0 1 0 4.24 4.24"/><path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68"/><path d="M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61"/><line x1="2" x2="22" y1="2" y2="22"/></svg>';
+  const SVG_COPY = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>';
+  const SVG_PENCIL = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg>';
+  const SVG_TRASH = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg>';
+
   // 状态变量
   let allVariables = {}; // key -> { value, memo, updatedAt }
   let filteredKeys = [];
@@ -20,7 +27,7 @@
   const toggleValBtn = document.getElementById('toggleValBtn');
   const searchInput = document.getElementById('searchInput');
   const refreshBtn = document.getElementById('refreshBtn');
-  const envTableBody = document.getElementById('envTableBody');
+  const envListContainer = document.getElementById('envListContainer');
   const pageInfo = document.getElementById('pageInfo');
   const prevBtn = document.getElementById('prevBtn');
   const nextBtn = document.getElementById('nextBtn');
@@ -41,6 +48,12 @@
     if (!val) return '';
     if (val.length <= 6) return '••••••';
     return `${val.slice(0, 3)}••••${val.slice(-3)}`;
+  }
+
+  function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
   }
 
   // 读取数据
@@ -89,15 +102,15 @@
     if (currentPage > maxPage) currentPage = maxPage;
     if (currentPage < 1) currentPage = 1;
 
-    renderTable();
+    renderList();
   }
 
-  // 渲染表格
-  function renderTable() {
-    envTableBody.innerHTML = '';
+  // 渲染双行列表
+  function renderList() {
+    envListContainer.innerHTML = '';
 
     if (filteredKeys.length === 0) {
-      envTableBody.innerHTML = '<tr><td colspan="4" class="empty-tip">暂无匹配的环境变量</td></tr>';
+      envListContainer.innerHTML = '<div class="empty-tip">暂无匹配的环境变量</div>';
       pageInfo.textContent = '第 1 / 1 页 (共 0 项)';
       prevBtn.disabled = true;
       nextBtn.disabled = true;
@@ -109,38 +122,53 @@
 
     pageKeys.forEach((key) => {
       const item = allVariables[key];
-      const tr = document.createElement('tr');
+      const itemEl = document.createElement('div');
+      itemEl.className = 'env-item';
 
-      // Key 列
-      const tdKey = document.createElement('td');
-      tdKey.innerHTML = `<span class="key-badge">${escapeHtml(key)}</span>`;
+      // ── 第一行：Key + Value + 操作区 ──
+      const rowMain = document.createElement('div');
+      rowMain.className = 'env-row-main';
 
-      // Value 列（脱敏与切换按钮）
-      const tdVal = document.createElement('td');
-      const valContainer = document.createElement('div');
-      valContainer.className = 'val-cell';
+      // 左侧聚合区（Key + Value 胶囊）
+      const leftCluster = document.createElement('div');
+      leftCluster.className = 'env-left-cluster';
+
+      const keySpan = document.createElement('span');
+      keySpan.className = 'key-badge';
+      keySpan.textContent = key;
+      leftCluster.appendChild(keySpan);
+
+      // Value 胶囊
+      const valPill = document.createElement('div');
+      valPill.className = 'val-pill';
+
       const valSpan = document.createElement('span');
+      valSpan.className = 'val-text';
       valSpan.textContent = mask(item.value);
       valSpan.dataset.revealed = 'false';
 
+      // 显隐按钮 (Eye)
       const eyeBtn = document.createElement('button');
-      eyeBtn.className = 'btn btn-sm';
-      eyeBtn.textContent = '👁';
-      eyeBtn.title = '查看/隐藏明文';
+      eyeBtn.className = 'pill-btn';
+      eyeBtn.innerHTML = SVG_EYE;
+      eyeBtn.title = '显示/隐藏明文';
       eyeBtn.onclick = () => {
         const isRevealed = valSpan.dataset.revealed === 'true';
         if (isRevealed) {
           valSpan.textContent = mask(item.value);
           valSpan.dataset.revealed = 'false';
+          eyeBtn.innerHTML = SVG_EYE;
         } else {
           valSpan.textContent = item.value;
           valSpan.dataset.revealed = 'true';
+          eyeBtn.innerHTML = SVG_EYE_OFF;
         }
       };
 
+      // 复制按钮 (Copy)
       const copyBtn = document.createElement('button');
-      copyBtn.className = 'btn btn-sm';
-      copyBtn.textContent = '📋';
+      copyBtn.className = 'pill-btn';
+      copyBtn.innerHTML = SVG_COPY;
       copyBtn.title = '复制变量值';
       copyBtn.onclick = async () => {
         try {
@@ -151,40 +179,41 @@
         }
       };
 
-      valContainer.appendChild(valSpan);
-      valContainer.appendChild(eyeBtn);
-      valContainer.appendChild(copyBtn);
-      tdVal.appendChild(valContainer);
+      valPill.appendChild(valSpan);
+      valPill.appendChild(eyeBtn);
+      valPill.appendChild(copyBtn);
+      leftCluster.appendChild(valPill);
+      rowMain.appendChild(leftCluster);
 
-      // Memo 列
-      const tdMemo = document.createElement('td');
-      tdMemo.className = 'memo-text';
-      tdMemo.textContent = item.memo || '-';
-
-      // 操作列（编辑 / 删除）
-      const tdActions = document.createElement('td');
-      tdActions.style.textAlign = 'right';
+      // 右侧操作区（编辑 + 删除图标按钮）
+      const actionsDiv = document.createElement('div');
+      actionsDiv.className = 'env-actions';
 
       const editBtn = document.createElement('button');
-      editBtn.className = 'btn btn-sm';
-      editBtn.textContent = '编辑';
-      editBtn.style.marginRight = '6px';
+      editBtn.className = 'icon-btn edit-btn';
+      editBtn.innerHTML = SVG_PENCIL;
+      editBtn.title = '编辑变量';
       editBtn.onclick = () => startEdit(key);
 
       const delBtn = document.createElement('button');
-      delBtn.className = 'btn btn-sm btn-danger';
-      delBtn.textContent = '删除';
+      delBtn.className = 'icon-btn del-btn';
+      delBtn.innerHTML = SVG_TRASH;
+      delBtn.title = '删除变量';
       delBtn.onclick = () => deleteKey(key);
 
-      tdActions.appendChild(editBtn);
-      tdActions.appendChild(delBtn);
+      actionsDiv.appendChild(editBtn);
+      actionsDiv.appendChild(delBtn);
+      rowMain.appendChild(actionsDiv);
 
-      tr.appendChild(tdKey);
-      tr.appendChild(tdVal);
-      tr.appendChild(tdMemo);
-      tr.appendChild(tdActions);
+      itemEl.appendChild(rowMain);
 
-      envTableBody.appendChild(tr);
+      // ── 第二行：备注说明 ──
+      const rowMemo = document.createElement('div');
+      rowMemo.className = 'env-row-memo';
+      rowMemo.textContent = item.memo || '无备注说明';
+      itemEl.appendChild(rowMemo);
+
+      envListContainer.appendChild(itemEl);
     });
 
     const totalPages = Math.ceil(filteredKeys.length / pageSize);
@@ -193,18 +222,12 @@
     nextBtn.disabled = currentPage >= totalPages;
   }
 
-  function escapeHtml(text) {
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
-  }
-
   // 编辑模式
   function startEdit(key) {
     editingKey = key;
     const item = allVariables[key];
     envKey.value = key;
-    envKey.disabled = true; // 编辑状态下 key 不可改
+    envKey.disabled = true;
     envValue.value = item.value;
     envMemo.value = item.memo || '';
     formTitle.textContent = `编辑变量: ${key}`;
@@ -298,7 +321,7 @@
   prevBtn.addEventListener('click', () => {
     if (currentPage > 1) {
       currentPage--;
-      renderTable();
+      renderList();
     }
   });
 
@@ -306,7 +329,7 @@
     const totalPages = Math.ceil(filteredKeys.length / pageSize);
     if (currentPage < totalPages) {
       currentPage++;
-      renderTable();
+      renderList();
     }
   });
 
