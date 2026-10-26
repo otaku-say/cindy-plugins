@@ -1,138 +1,298 @@
-{
-  "schemaVersion": 3,
-  "id": "aiod-cli",
-  "name": "Aiod CLI",
-  "description": "CubeSandbox æ²™ç®±å†… aiod v2 API é¥æ§å™¨ï¼šè¿›ç¨‹æ‰§è¡Œã€æ–‡ä»¶ç®¡ç†ã€æµè§ˆå™¨ä¸ MCP",
-  "whenToUse": "éœ€è¦æ·±å…¥ CubeSandbox æ²™ç®±å†…æ‰§è¡Œå‘½ä»¤ã€ç®¡ç†æ–‡ä»¶ã€é¥æ§æµè§ˆå™¨ã€æ‰§è¡Œä»£ç æˆ–å¯åŠ¨ MCP Server æ—¶",
-  "version": "0.1.1",
-  "minCindyVersion": "3.0.0",
-  "entry": "main.js",
-  "command": "aiod",
-  "icon": "assets/icon.png",
-  "manual": {
-    "items": [
-      {
-        "dir": "manual/guide",
-        "name": "guide",
-        "description": "Aiod CLI å®Œæ•´ä½¿ç”¨æ‰‹å†Œä¸æ²™ç®±å†…éƒ¨ç³»ç»Ÿæ“ä½œæŒ‡å¼•"
-      }
-    ]
-  },
-  "settingsHtml": "settings.html",
-  "node": {
-    "entry": "node/worker.cjs",
-    "protocol": "json-rpc-stdio",
-    "lifecycle": "on-demand",
-    "idleTimeoutSeconds": 120,
-    "secretBindings": [
-      {
-        "key": "sandbox_key",
-        "label": "Sandbox Key",
-        "methods": ["aiod/run", "aiod/submit", "aiod/health"],
-        "hint": "æ²™ç®±å†… aiod ç½‘å…³é‰´æƒ Keyï¼ˆå¯é€‰ï¼‰"
-      }
-    ]
-  },
-  "setup": {
-    "requires": []
-  },
-  "tools": [
-    {
-      "name": "aiod_version",
-      "description": "æŸ¥çœ‹ aiod-cli ç‰ˆæœ¬å·ä¸è¿è¡Œå¹³å°ä¿¡æ¯",
-      "parameters": {
-        "type": "object",
-        "properties": {}
-      }
-    },
-    {
-      "name": "aiod_health",
-      "description": "æ£€æŸ¥å½“å‰é…ç½®çš„æ²™ç®±å†… aiod æœåŠ¡çš„å¥åº·ä¸è¿é€šçŠ¶æ€",
-      "parameters": {
-        "type": "object",
-        "properties": {
-          "base": {
-            "type": "string",
-            "description": "æ²™ç®±ç½‘å…³åœ°å€ï¼ˆå¯é€‰ï¼Œå¦‚ä¸ä¼ åˆ™ä½¿ç”¨é»˜è®¤é…ç½®ä¸­çš„ SANDBOX_BASEï¼‰"
-          }
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+scripts/build-market.py â€”â€” Cindy å¤šæ’ä»¶ã€å…¨å¹³å°æ¶æ„è‡ªåŠ¨æ„å»ºåˆ†å‘å¼•æ“
+ä¸¥æ ¼éµå¾ªç³»ç»Ÿå…¨ç§° (macos, windows, linux) ä¸èŠ¯ç‰‡æ¶æ„å…¨ç§° (arm64, amd64) è§„èŒƒï¼š
+  macos-arm64, macos-amd64, windows-amd64, windows-arm64, linux-amd64, linux-arm64
+"""
+
+import os
+import sys
+import json
+import shutil
+import zipfile
+import urllib.request
+import hashlib
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent
+MANIFEST_PATH = ROOT / "scripts" / "manifest.json"
+CACHE_DIR = ROOT / ".cache" / "upstream"
+DIST_DIR = ROOT / "dist"
+PLATFORMS_DIST = DIST_DIR / "platforms"
+PACKAGES_DIST = DIST_DIR / "packages"
+
+def load_manifest():
+    with open(MANIFEST_PATH, "r", encoding="utf-8") as f:
+        return json.load(f)
+
+def download_file(url, dest_path):
+    dest_path.parent.mkdir(parents=True, exist_ok=True)
+    print(f"  [HTTP] ä¸‹è½½: {url} -> {dest_path.name}")
+    headers = {"User-Agent": "cindy-market-engine"}
+    token = os.environ.get("GITHUB_TOKEN")
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+    req = urllib.request.Request(url, headers=headers)
+    try:
+        with urllib.request.urlopen(req) as resp, open(dest_path, "wb") as out:
+            shutil.copyfileobj(resp, out)
+    except Exception as e:
+        print(f"  [FALLBACK] urllib å¤±è´¥ ({e})ï¼Œåˆ‡æ¢ curl ä¸‹è½½...")
+        import subprocess
+        curl_cmd = ["curl", "-fsSL", url, "-o", str(dest_path)]
+        if token:
+            curl_cmd[2:2] = ["-H", f"Authorization: Bearer {token}"]
+        subprocess.run(curl_cmd, check=True)
+
+def get_file_sha256(file_path):
+    h = hashlib.sha256()
+    with open(file_path, "rb") as f:
+        while chunk := f.read(65536):
+            h.update(chunk)
+    return h.hexdigest()
+
+def sync_upstream_for_plugin(plugin_id, plugin_meta, platforms):
+    upstream = plugin_meta.get("upstream")
+    if not upstream:
+        return {}
+
+    repo = upstream["repo"]
+    tag = upstream["tag"]
+    base_url = f"https://github.com/{repo}/releases/download/{tag}"
+    plugin_cache = CACHE_DIR / plugin_id
+    plugin_cache.mkdir(parents=True, exist_ok=True)
+
+    sums_file = plugin_cache / "SHA256SUMS"
+    try:
+        download_file(f"{base_url}/SHA256SUMS", sums_file)
+    except Exception as e:
+        print(f"  [WARN] æ— æ³•è·å– SHA256SUMS: {e}")
+
+    checksums = {}
+    if sums_file.exists():
+        with open(sums_file, "r", encoding="utf-8") as f:
+            for line in f:
+                parts = line.strip().split()
+                if len(parts) >= 2:
+                    checksums[parts[1]] = parts[0]
+
+    supported = upstream.get("supported_platforms")
+    artifact_tmpl = upstream["artifact_template"]
+    downloaded = {}
+
+    for plat_name, pinfo in platforms.items():
+        if supported and plat_name not in supported:
+            continue
+
+        target = pinfo["target"]
+        ext = pinfo["ext"]
+        artifact_name = artifact_tmpl.format(target=target, ext=ext)
+        dest_file = plugin_cache / artifact_name
+
+        if not dest_file.exists():
+            download_url = f"{base_url}/{artifact_name}"
+            download_file(download_url, dest_file)
+
+        actual_sha = get_file_sha256(dest_file)
+        if artifact_name in checksums:
+            expected_sha = checksums[artifact_name]
+            if actual_sha != expected_sha:
+                raise ValueError(f"æ ¡éªŒå¤±è´¥: {artifact_name} (æœŸæœ›: {expected_sha}, å®é™…: {actual_sha})")
+            print(f"  [SHA256] æ ¡éªŒé€šè¿‡: {artifact_name}")
+        else:
+            print(f"  [SHA256] è®°å½•æŒ‡çº¹: {artifact_name} ({actual_sha[:12]})")
+
+        downloaded[plat_name] = dest_file
+
+    return downloaded
+
+def zip_directory(src_dir, dest_zip_path):
+    dest_zip_path.parent.mkdir(parents=True, exist_ok=True)
+    with zipfile.ZipFile(dest_zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
+        for root, dirs, files in os.walk(src_dir):
+            dirs[:] = [d for d in dirs if not d.startswith(".") and d != "node_modules"]
+            for file in files:
+                if file.startswith(".") or file.endswith(".cindy") or file.endswith(".zip"):
+                    continue
+                full_path = Path(root) / file
+                rel_path = full_path.relative_to(src_dir)
+                zf.write(full_path, arcname=str(rel_path))
+
+def build_all():
+    manifest = load_manifest()
+    platforms = manifest["platforms"]
+    plugins = manifest["plugins"]
+    owner = manifest["owner"]
+    repo = manifest["repo"]
+
+    print(f"=== å¼€å§‹æ„å»º Cindy æ’ä»¶å¸‚åœº: {manifest['name']} ===")
+    print(f"æ”¶å½•æ’ä»¶: {list(plugins.keys())}")
+    print(f"æ”¯æŒæ¶æ„çŸ©é˜µ: {list(platforms.keys())}\n")
+
+    artifacts_map = {}
+    for pid, pmeta in plugins.items():
+        print(f"[*] æ£€æŸ¥æ’ä»¶ä¸Šæ¸¸äº§ç‰©: {pid} ({pmeta['name']})")
+        artifacts_map[pid] = sync_upstream_for_plugin(pid, pmeta, platforms)
+
+    PACKAGES_DIST.mkdir(parents=True, exist_ok=True)
+    cindy_packages_meta = {}
+
+    for plat_name, pinfo in platforms.items():
+        plat_dir = PLATFORMS_DIST / plat_name
+        if plat_dir.exists():
+            shutil.rmtree(plat_dir)
+        plat_dir.mkdir(parents=True, exist_ok=True)
+
+        for pid, pmeta in plugins.items():
+            if plat_name not in artifacts_map[pid]:
+                continue
+
+            src_plugin_dir = ROOT / "plugins" / pid
+            dest_plugin_dir = plat_dir / "plugins" / pid
+            shutil.copytree(src_plugin_dir, dest_plugin_dir)
+
+            # å•å¹³å°ç˜¦èº«åŒ…ï¼šå°†å¯¹åº”æ¶æ„äºŒè¿›åˆ¶æ”¾åœ¨å•ä¸ª bin/ æ ¹éƒ¨ï¼Œæ¸…ç†å…¶ä½™æ¶æ„ç›®å½•
+            bin_dir = dest_plugin_dir / "bin"
+            if bin_dir.exists():
+                shutil.rmtree(bin_dir)
+            bin_dir.mkdir(parents=True, exist_ok=True)
+
+            src_bin = artifacts_map[pid][plat_name]
+            bin_name = pmeta["upstream"]["binary_name"].format(target=pinfo["target"], ext=pinfo["ext"])
+            dest_bin = bin_dir / bin_name
+            shutil.copy2(src_bin, dest_bin)
+            if not bin_name.endswith(".exe"):
+                dest_bin.chmod(0o755)
+
+            # ç”Ÿæˆæ ‡å‡†çš„ <pid>-<version>-<os>-<arch>.cindy
+            version = pmeta["version"]
+            cindy_filename = f"{pid}-{version}-{plat_name}.cindy"
+            cindy_path = PACKAGES_DIST / cindy_filename
+            zip_directory(dest_plugin_dir, cindy_path)
+
+            pkg_sha = get_file_sha256(cindy_path)
+            pkg_size = cindy_path.stat().st_size
+            release_url = f"https://github.com/{owner}/{repo}/releases/download/v{version}/{cindy_filename}"
+
+            cindy_packages_meta[(pid, plat_name)] = {
+                "sha256": pkg_sha,
+                "size": pkg_size,
+                "filename": cindy_filename,
+                "download_url": release_url
+            }
+
+    # ç”Ÿæˆå…¨å±€å¸‚åœºæ¸…å•
+    mkt_plugins = []
+    for pid, pmeta in plugins.items():
+        ghost_path = ROOT / "plugins" / pid / "ghost.json"
+        ghost_data = {}
+        if ghost_path.exists():
+            with open(ghost_path, "r", encoding="utf-8") as f:
+                ghost_data = json.load(f)
+
+        item = {
+            "id": pid,
+            "name": pmeta["name"],
+            "description": pmeta["description"],
+            "version": pmeta["version"],
+            "command": pmeta.get("command", ghost_data.get("command")),
+            "author": pmeta.get("author", "Cindy Community"),
+            "source": f"plugins/{pid}",
+            "icon": f"plugins/{pid}/assets/icon.png",
+            "whenToUse": ghost_data.get("whenToUse", ""),
+            "tags": pmeta.get("tags", []),
+            "platforms": {}
         }
-      }
-    },
-    {
-      "name": "aiod_run",
-      "description": "æ‰§è¡Œ aiod-cli å‘½ä»¤ï¼ˆæ”¯æŒ exec, files, pty, browser, misc ç­‰æ²™ç®±å†…éƒ¨æ“ä½œï¼‰",
-      "parameters": {
-        "type": "object",
-        "properties": {
-          "cmd": {
-            "type": "string",
-            "description": "å­å‘½ä»¤åç§°ï¼ˆå¦‚ exec, ls, cat, write, upload, download, browser ç­‰ï¼‰"
-          },
-          "args": {
-            "type": "array",
-            "items": { "type": "string" },
-            "description": "ä¼ é€’ç»™å­å‘½ä»¤çš„å‚æ•°åˆ—è¡¨"
-          },
-          "base": {
-            "type": "string",
-            "description": "é’ˆå¯¹æŒ‡å®šæ²™ç®±å®ä¾‹çš„ç½‘å…³åœ°å€ï¼ˆå¯é€‰ï¼‰"
-          }
-        },
-        "required": ["cmd"]
-      }
-    },
-    {
-      "name": "aiod_submit",
-      "description": "å¼‚æ­¥æäº¤æ²™ç®±å†…çš„é•¿ä»»åŠ¡ï¼Œç«‹å³è¿”å› taskId",
-      "parameters": {
-        "type": "object",
-        "properties": {
-          "cmd": { "type": "string", "description": "è¦å¼‚æ­¥æ‰§è¡Œçš„å­å‘½ä»¤" },
-          "args": { "type": "array", "items": { "type": "string" }, "description": "å‚æ•°åˆ—è¡¨" },
-          "base": { "type": "string", "description": "æ²™ç®±ç½‘å…³åœ°å€ï¼ˆå¯é€‰ï¼‰" }
-        },
-        "required": ["cmd"]
-      }
-    },
-    {
-      "name": "aiod_log",
-      "description": "è·å–ç”± aiod_submit æäº¤çš„åå°ä»»åŠ¡è¾“å‡ºæ—¥å¿—",
-      "parameters": {
-        "type": "object",
-        "properties": {
-          "taskId": { "type": "string", "description": "ä»»åŠ¡ ID" },
-          "offset": { "type": "integer", "description": "èµ·å§‹è¡Œ/åç§»" }
-        },
-        "required": ["taskId"]
-      }
-    },
-    {
-      "name": "aiod_kill",
-      "description": "ç»ˆæ­¢æ­£åœ¨è¿è¡Œçš„æ²™ç®±å†…å¼‚æ­¥ä»»åŠ¡",
-      "parameters": {
-        "type": "object",
-        "properties": {
-          "taskId": { "type": "string", "description": "ä»»åŠ¡ ID" }
-        },
-        "required": ["taskId"]
-      }
+
+        for plat_name, pinfo in platforms.items():
+            if (pid, plat_name) in cindy_packages_meta:
+                meta = cindy_packages_meta[(pid, plat_name)]
+                # æ ‡å‡†è§„èŒƒé”®ï¼š<os>-<arch> (ä¾‹å¦‚ macos-arm64, macos-amd64, windows-amd64, linux-amd64 ç­‰)
+                item["platforms"][plat_name] = {
+                    "platform": plat_name,
+                    "os": pinfo["os"],
+                    "arch": pinfo["arch"],
+                    "target": pinfo["target"],
+                    "download_url": meta["download_url"],
+                    "sha256": meta["sha256"],
+                    "size": meta["size"]
+                }
+
+        mkt_plugins.append(item)
+
+    final_mkt = {
+        "$schema": "https://cindy.app/schemas/marketplace.v1.json",
+        "name": manifest["name"],
+        "description": manifest["description"],
+        "owner": owner,
+        "repo": f"https://github.com/{owner}/{repo}",
+        "platforms": manifest["platforms"],
+        "plugins": mkt_plugins
     }
-  ]
-}
-zw(v)àm«ëŠZ¶eº§³ö¢¡×%‹ø!¢Ëc²‰Ü¢{^×°¢&æÖR#¢$6–æG’ÇVv–ç2Ö&¶WB"À¢&÷væW"#¢&÷F·R×6’"À¢'&Wò#¢&6–æG’×ÇVv–ç2"À¢&FW67&—F–öâ#¢$6–æG’ˆz®Zé®K˜hù.K»n[ˆ.YË®ûÈZéikKˆîzKîXË®š¹‹J˜xşhù.K»nûÈÎiJşhÈXZi8ŞKÙÎ{;¾{¹şKˆîiënièNˆz®Xª˜.˜XŞûÈ’"À¢'ÆFf÷&×2#¢°¢&Ö6÷2Ö&ÓcB#¢°¢&÷2#¢&Ö6÷2"À¢&&6‚#¢&&ÓcB"À¢'F&vWB#¢&&6ƒcBÖÖ6÷2"À¢&æÖUöÆ&VÂ#¢&Ö4õ2ÆR6–Æ–6öâ†&ÓcB’"À¢&W‡B#¢" ¢ÒÀ¢&Ö6÷2ÖÖCcB#¢°¢&÷2#¢&Ö6÷2"À¢&&6‚#¢&ÖCcB"À¢'F&vWB#¢'ƒƒeócBÖÖ6÷2"À¢&æÖUöÆ&VÂ#¢&Ö4õ2–çFVÂ†ÖCcB’"À¢&W‡B#¢" ¢ÒÀ¢'v–æF÷w2ÖÖCcB#¢°¢&÷2#¢'v–æF÷w2"À¢&&6‚#¢&ÖCcB"À¢'F&vWB#¢'ƒƒeócB×v–æF÷w2ÖvçR"À¢&æÖUöÆ&VÂ#¢%v–æF÷w2cBÖ&—B†ÖCcB’"À¢&W‡B#¢"æW†R ¢ÒÀ¢'v–æF÷w2Ö&ÓcB#¢°¢&÷2#¢'v–æF÷w2"À¢&&6‚#¢&&ÓcB"À¢'F&vWB#¢&&6ƒcB×v–æF÷w2ÖvçR"À¢&æÖUöÆ&VÂ#¢%v–æF÷w2$ÓcB†&ÓcB’"À¢&W‡B#¢"æW†R ¢ÒÀ¢&Æ–çW‚ÖÖCcB#¢°¢&÷2#¢&Æ–çW‚"À¢&&6‚#¢&ÖCcB"À¢'F&vWB#¢'ƒƒeócBÖÆ–çW‚Ö×W6Â"À¢&æÖUöÆ&VÂ#¢$Æ–çW‚cBÖ&—B†ÖCcB’"À¢&W‡B#¢" ¢ÒÀ¢&Æ–çW‚Ö&ÓcB#¢°¢&÷2#¢&Æ–çW‚"À¢&&6‚#¢&&ÓcB"À¢'F&vWB#¢&&6ƒcBÖÆ–çW‚Ö×W6Â"À¢&æÖUöÆ&VÂ#¢$Æ–çW‚$ÓcB†&ÓcB’"À¢&W‡B#¢" ¢Ğ¢ÒÀ¢'ÇVv–ç2#¢°¢&7V&RÖ6Æ’#¢°¢&–B#¢&7V&RÖ6Æ’"À¢&æÖR#¢$7V&R4Ä’"À¢&FW67&—F–öâ#¢$7V&U6æF&÷‚hê~X‹n™Ú.˜^hê~YšûÉ®X‰¾[»®8zêynk)zëyIşYŞYiÉş8zºşXú>Kˆîih~K»ni8ŞKÙÂ"À¢'fW'6–öâ#¢#ãã"À¢&6öÖÖæB#¢&7V&R"À¢&WF†÷"#¢&÷F·R×6’"À¢'Fw2#¢°¢'6æF&÷‚"À¢&6Æ÷VB"À¢&7V&RÖ6Æ’"À¢'&VÖ÷FRÖ6öçG&öÂ ¢ÒÀ¢'W7G&VÒ#¢°¢'&Wò#¢&÷F·R×6’÷6æF&÷‚Ö6Æ’"À¢'Fr#¢&ÆFW7B"À¢&'F–f7E÷FV×ÆFR#¢&7V&RÖ6Æ’×·F&vWG×¶W‡GÒ"À¢&&–æ'•öæÖR#¢&7V&RÖ6Æ—¶W‡GÒ ¢Ğ¢ÒÀ¢&–öBÖ6Æ’#¢°¢&–B#¢&–öBÖ6Æ’"À¢&æÖR#¢$–öB4Ä’"À¢&FW67&—F–öâ#¢$7V&U6æF&÷‚k)zëXhR–öBc"’˜^hê~YšûÉ®‹ù¾zˆ¾hš~ŠÎ8ih~K»nzêyn8kXşŠxYšKˆâÔ5"À¢'fW'6–öâ#¢#ãã"À¢&6öÖÖæB#¢&–öB"À¢&WF†÷"#¢&÷F·R×6’"À¢'Fw2#¢°¢'6æF&÷‚"À¢&–öB"À¢&W†V2"À¢&f–ÆW2"À¢&'&÷w6W""À¢&Ö7 ¢ÒÀ¢'W7G&VÒ#¢°¢'&Wò#¢&÷F·R×6’÷6æF&÷‚Ö6Æ’"À¢'Fr#¢&ÆFW7B"À¢&'F–f7E÷FV×ÆFR#¢&–öBÖ6Æ’×·F&vWG×¶W‡GÒ"À¢&&–æ'•öæÖR#¢&–öBÖ6Æ—¶W‡GÒ"À¢'7W÷'FVE÷ÆFf÷&×2#¢°¢&Ö6÷2Ö&ÓcB"À¢&Ö6÷2ÖÖCcB"À¢'v–æF÷w2ÖÖCcB"À¢'v–æF÷w2Ö&ÓcB"À¢&Æ–çW‚ÖÖCcB"À¢&Æ–çW‚Ö&ÓcB ¢Ğ¢Ğ¢Ğ¢Ğ§Ğ§§r‡bÚ±î¸¥«a±Êâ¦Û?™©â}ë-Ê'r‰íz{HÚ[˜ÛYHİ[Ëš‚ˆÚ[˜ÛYHİš[™Ëš‚ˆÚ[˜ÛYHİX‹š‚‚š[XZ[Š[\™ØËÚ\ˆ
-˜\™İ–×JHÂˆYˆ
-\™ØÈŠHÂˆš[Š˜Z[ÙXÛHŒKŒ
-Ú[™İÜÊWˆŠNÂˆ™]\›ˆÂˆBˆYˆ
-İ˜Û\
-\™İ–ÌWK™\œÚ[ÛˆŠHOHİ˜Û\
-\™İ–ÌWK‹K]™\œÚ[ÛˆŠHOH
-HÂˆš[Š˜Z[ÙXÛHŒKŒˆŠNÂˆ™]\›ˆÂˆBˆYˆ
-İ˜Û\
-\™İ–ÌWKšX[ŠHOH
-HÂˆÛÛœİÚ\ˆ
-˜˜\ÙHHÙ][Š”ĞS‘“ÖĞTÑHŠNÂˆYˆ
-˜\ÙH	‰ˆİ›[Š˜\ÙJHˆ
-HÂˆš[ŠÛÛ›™XİYÈØ[™›Ş]	\È
-X[JWˆ‹˜\ÙJNÂˆH[ÙHÂˆš[ŠšX[H
-İ[™JWˆŠNÂˆBˆ™]\›ˆÂˆBˆËÈ9kîy.£¹am¹.å¹kd9doy.é;ï#:/¤ùaî¹l,yîê¹dãyn¥ˆš[Š˜Z[ÙXÛH
-Ú[™İÜÊNˆÛÛ[X[™	É\ÉÈXØÙ\Y—ˆ‹\™İ–ÌWJNÂˆ™]\›ˆÂŸB
+
+    mkt_out = ROOT / ".agents" / "plugins" / "marketplace.json"
+    mkt_out.parent.mkdir(parents=True, exist_ok=True)
+    with open(mkt_out, "w", encoding="utf-8") as f:
+        json.dump(final_mkt, f, ensure_ascii=False, indent=2)
+
+    print("\n[+] å¸‚åœºæ¸…å•å·²ç”Ÿæˆ: .agents/plugins/marketplace.json")
+    print(f"[+] å„å¹³å° .cindy å®‰è£…åŒ…å·²ç”Ÿæˆ (å…± {len(cindy_packages_meta)} é¡¹):\n")
+    for (pid, plat_name), meta in cindy_packages_meta.items():
+        kb = meta["size"] / 1024
+        print(f"  - {meta['filename']:40} | {kb:6.1f} KB | SHA256: {meta['sha256'][:12]}...")
+
+def push_all_branches(manifest):
+    platforms = manifest["platforms"]
+    token = os.environ.get("GITHUB_TOKEN")
+    owner = manifest["owner"]
+    repo = manifest["repo"]
+    if token:
+        remote_url = f"https://x-access-token:{token}@github.com/{owner}/{repo}.git"
+    else:
+        remote_url = "origin"
+
+    import subprocess
+
+    # 1. è‡ªåŠ¨åˆ é™¤æ—§è§„èŒƒé—ç•™åˆ†æ”¯
+    old_branches = ["plat/linux-x64", "plat/macos-x64", "plat/win-x64", "plat/win-arm64"]
+    print("=== æ¸…ç†æ—§å‘½åé—ç•™åˆ†æ”¯ ===")
+    for old_b in old_branches:
+        res = subprocess.run(["git", "push", remote_url, "--delete", old_b], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        if res.returncode == 0:
+            print(f"  [DELETED] å·²æ¸…ç†æ—§åˆ†æ”¯: {old_b}")
+
+    # 2. æ¨é€å…¨æ–°çš„æ ‡å‡†è§„èŒƒåˆ†æ”¯
+    print("=== å¼€å§‹æ›´æ–°å„å¹³å°æ ‡å‡†è½»é‡åˆ†æ”¯ (plat/<os>-<arch>) ===")
+    for plat_name in platforms.keys():
+        plat_dir = PLATFORMS_DIST / plat_name
+        if not plat_dir.exists():
+            continue
+        print(f"[*] æ¨é€æ ‡å‡†å¹³å°åˆ†æ”¯: plat/{plat_name} ...")
+        git_dir = plat_dir / ".git"
+        if git_dir.exists():
+            shutil.rmtree(git_dir)
+
+        subprocess.run(["git", "init"], cwd=plat_dir, check=True, stdout=subprocess.DEVNULL)
+        subprocess.run(["git", "config", "user.name", "github-actions[bot]"], cwd=plat_dir, check=True)
+        subprocess.run(["git", "config", "user.email", "github-actions[bot]@users.noreply.github.com"], cwd=plat_dir, check=True)
+        subprocess.run(["git", "add", "-A"], cwd=plat_dir, check=True)
+        subprocess.run(["git", "commit", "-m", f"chore(release): auto-assembled {plat_name} packages"], cwd=plat_dir, check=True, stdout=subprocess.DEVNULL)
+        res = subprocess.run(["git", "push", remote_url, f"HEAD:refs/heads/plat/{plat_name}", "--force"], cwd=plat_dir)
+        if res.returncode == 0:
+            print(f"  [OK] plat/{plat_name} æ¨é€æˆåŠŸï¼")
+        else:
+            print(f"  [FAIL] plat/{plat_name} æ¨é€å¤±è´¥ï¼")
+
+if __name__ == "__main__":
+    import traceback
+    try:
+        if "--push-branches" in sys.argv:
+            m = load_manifest()
+            push_all_branches(m)
+        else:
+            build_all()
+    except Exception as e:
+        print(f"\n[CRITICAL ERROR] æ‰§è¡Œå¤±è´¥: {e}", file=sys.stderr, flush=True)
+        traceback.print_exc(file=sys.stderr)
+        sys.exit(1)

@@ -6,8 +6,8 @@
 
 ## 什么时候主动使用本插件？
 
-当遇到以下任意场景时，Agent 应主动调用 `cube_submit` 异步挂载并在后台运行）；
-1. **代码安全隔离执行**：甸户匕攞运行复杌的 Python 脚本、Node.js 项目、Bash 命令，但运行环境存在连性粎市，100% 安全挂个欩绐柜测仛。
+当遇到以下任意场景时，Agent 应主动调用 `cube-cli`：
+1. **代码安全隔离执行**：用户希望执行复杂的 Python 脚本、Node.js 项目、Bash 命令，但当前本地机器缺少依赖、或者代码存在潜在系统破坏风险时；
 2. **云端沙箱全生命周期管理**：需要动态创建沙箱（`new`）、查询存活实例（`ls`）、获取沙箱元数据与详情（`info`）、暂停挂起（`pause`）、恢复（`resume`）或销毁沙箱（`rm`）时；
 3. **长时间异步构建与计算**：需要运行大型包安装、数据模型训练或复杂任务，不能阻塞当前会话超时（使用 `cube_submit` 异步挂载并在后台运行）；
 4. **沙箱模板与镜像操作**：查询当前云端已有的容器模板（`template ls`）或根据需求动态挑选模板（`--need=code` / `--need=browser`）。
@@ -79,5 +79,5 @@
 ## 常见错误与恢复策略
 
 - `Missing API Key`：提示用户打开 Cindy 插件详情页面的「设置」，填入 CubeSandbox API Key；
-- `Template Not`：说明指定的 `--template` 别名不存在，可先调用 `cube_run({ cmd: "template", args: ["ls"] })` 查看可用的沙箱模板清单；
+- `Template Not Found`：说明指定的 `--template` 别名不存在，可先调用 `cube_run({ cmd: "template", args: ["ls"] })` 查看可用的沙箱模板清单；
 - `Process Timeout`：普通同步调用超过窗口期未返回，请改用 `cube_submit` 异步工作流。
