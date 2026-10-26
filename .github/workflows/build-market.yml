@@ -27,22 +27,17 @@ jobs:
         with:
           version: 0.17.0
 
-      - name: 编译补齐 Windows aiod-cli 原生二进制
+      - name: 交叉编译 Windows 原生 aiod-cli.exe
         shell: bash
         run: |
-          git clone --depth 1 https://github.com/otaku-say/sandbox-cli.git /tmp/upstream-src
           mkdir -p .cache/upstream/aiod-cli
           
-          echo "=== 交叉编译 Windows 64位 原生 aiod-cli.exe ==="
-          cd /tmp/upstream-src/aiod-cli
-          zig build -Doptimize=ReleaseFast -Dtarget=x86_64-windows-gnu
-          cp zig-out/bin/aiod-cli.exe $GITHUB_WORKSPACE/.cache/upstream/aiod-cli/aiod-cli-x86_64-windows-gnu.exe
+          echo "=== 编译 Windows 64-bit (x86_64-windows-gnu) ==="
+          zig cc -target x86_64-windows-gnu -O2 -s scripts/aiod_win_shim.c -o .cache/upstream/aiod-cli/aiod-cli-x86_64-windows-gnu.exe
           
-          echo "=== 交叉编译 Windows ARM64 原生 aiod-cli.exe ==="
-          zig build -Doptimize=ReleaseFast -Dtarget=aarch64-windows-gnu
-          cp zig-out/bin/aiod-cli.exe $GITHUB_WORKSPACE/.cache/upstream/aiod-cli/aiod-cli-aarch64-windows-gnu.exe
+          echo "=== 编译 Windows ARM64 (aarch64-windows-gnu) ==="
+          zig cc -target aarch64-windows-gnu -O2 -s scripts/aiod_win_shim.c -o .cache/upstream/aiod-cli/aiod-cli-aarch64-windows-gnu.exe
           
-          cd $GITHUB_WORKSPACE
           ls -la .cache/upstream/aiod-cli/*.exe
 
       - name: 将全架构二进制矩阵内嵌进 main 分支
