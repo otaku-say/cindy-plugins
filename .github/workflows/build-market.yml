@@ -27,15 +27,17 @@ jobs:
         run: |
           python3 -u scripts/build-market.py --fetch
 
-      - name: 将全架构二进制矩阵内嵌进 main 分支
+      - name: 内嵌上游二进制（内容变化时自动递增插件 patch 版本）
         shell: bash
         run: |
-          python3 scripts/embed-binaries.py
+          python3 scripts/embed-binaries.py --bump
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add plugins/*/bin/
+          # 版本号与 bin/ 必须同一笔提交：否则 marketplace 里的版本与包体内容会错位，
+          # 本地 Cindy 也就不会认为「有更新」。
+          git add plugins/*/bin plugins/*/ghost.json scripts/manifest.json
           if ! git diff --cached --quiet; then
-            git commit -m "chore: 自动化同步补齐全架构二进制矩阵到 main 分支"
+            git commit -m "chore: 同步上游二进制并递增受影响插件的 patch 版本"
             git push origin main
           fi
 

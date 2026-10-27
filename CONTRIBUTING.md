@@ -94,11 +94,11 @@ aiod-cli-linux-arm64     aiod-cli-linux-amd64
 |---|---|
 | 1. `build-market.py --fetch` | 按 `scripts/manifest.json` 的 `upstream` 配置，从上游 `latest` Release 拉 6 个平台资产到 `.cache/upstream/<id>/` |
 | 2. SHA256 校验 | 用上游 `SHA256SUMS` 逐个比对；**任一不符即整条流水线失败**，绝不发布坏二进制 |
-| 3. `embed-binaries.py` | 把资产内嵌到 `plugins/<id>/bin/<os>-<arch>/`，并清理非标准目录 |
+| 3. `embed-binaries.py --bump` | 把资产内嵌到 `plugins/<id>/bin/<os>-<arch>/`；内容有变化就 patch 版本 +1，并清理非标准目录 |
 | 4. `build-market.py` | 生成单平台 `.cindy` 包 + `.agents/plugins/marketplace.json` |
 | 5. Release | 把平台包挂到 `v<max(version)>` |
 
-**上游发版后怎么跟：** 只改 `scripts/manifest.json` 里的 `version`（同时改 `ghost.json` 的 `version`，两者必须相等），push 即可。**不要**手工往 `bin/` 里拷文件，也不要在本仓库编译二进制。
+**上游发版后怎么跟：** 不需要手改版本号——CI 发现某个插件的二进制内容变化时，会自动把它的 patch 版本 +1（`0.2.0` → `0.2.1`），并把 `bin/`、`scripts/manifest.json`、`plugins/<id>/ghost.json` 放在同一笔提交里，本地 Cindy 因此能识别出「有新版本」。只想手动指定版本时，才改 `scripts/manifest.json` 里的 `version`（同时改 `ghost.json` 的 `version`，两者必须相等），push 即可。**不要**手工往 `bin/` 里拷文件，也不要在本仓库编译二进制。
 
 `scripts/manifest.json` 的 upstream 段：
 
