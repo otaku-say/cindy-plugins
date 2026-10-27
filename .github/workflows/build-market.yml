@@ -22,23 +22,10 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: 安装 Zig 交叉编译器
-        uses: mlugg/setup-zig@v2
-        with:
-          version: 0.17.0
-
-      - name: 交叉编译 Windows 原生 aiod-cli.exe
+      - name: 拉取上游发布资产（aiod-cli / cube-cli 独立仓库）
         shell: bash
         run: |
-          mkdir -p .cache/upstream/aiod-cli
-          
-          echo "=== 编译 Windows 64-bit (x86_64-windows-gnu) ==="
-          zig cc -target x86_64-windows-gnu -O2 -s scripts/aiod_win_shim.c -o .cache/upstream/aiod-cli/aiod-cli-x86_64-windows-gnu.exe
-          
-          echo "=== 编译 Windows ARM64 (aarch64-windows-gnu) ==="
-          zig cc -target aarch64-windows-gnu -O2 -s scripts/aiod_win_shim.c -o .cache/upstream/aiod-cli/aiod-cli-aarch64-windows-gnu.exe
-          
-          ls -la .cache/upstream/aiod-cli/*.exe
+          python3 -u scripts/build-market.py --fetch
 
       - name: 将全架构二进制矩阵内嵌进 main 分支
         shell: bash
@@ -74,12 +61,5 @@ jobs:
           name: "${{ env.RELEASE_TAG }} - 自动构建多架构 Cindy 插件市场产物"
           files: dist/packages/*
           make_latest: true
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: 清理旧命名分支并推送 6 大标准架构独立分支 (plat/*)
-        shell: bash
-        run: |
-          python3 -u scripts/build-market.py --push-branches
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

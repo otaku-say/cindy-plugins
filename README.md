@@ -1,50 +1,46 @@
 # Cindy Plugins Market（Cindy 自定义插件市场）
 
-[![Market Version](https://img.shields.io/badge/market-v0.1.2-blue.svg)](https://github.com/otaku-say/cindy-plugins)
+[![Market Version](https://img.shields.io/badge/market-v0.2.0-blue.svg)](https://github.com/otaku-say/cindy-plugins)
 [![Platform Matrix](https://img.shields.io/badge/platforms-6%20architectures-green.svg)](https://github.com/otaku-say/cindy-plugins)
 [![Security Audited](https://img.shields.io/badge/security-safeStorage%20isolated-orange.svg)](https://github.com/otaku-say/cindy-plugins)
 
-公开、高标准的 Cindy 扩展能力插件市场。严格遵循 **操作系统全称 (`macos` / `windows` / `linux`)** 与 **芯片架构标准名称 (`arm64` / `amd64`)** 规范，提供 **全架构自动识别适配**、**平台原生专属轻量订阅** 与 **企业级凭证安全隔离**。
+公开、高标准的 Cindy 扩展能力插件市场。严格遵循 **操作系统全称 (`macos` / `windows` / `linux`)** 与 **芯片架构标准名称 (`arm64` / `amd64`)** 规范，提供 **全架构自动识别适配**、**按平台裁剪的轻量安装包** 与 **企业级凭证安全隔离**。
 
 ---
 
 ## 快速开始：添加插件市场
 
-进入 Cindy 应用中的 **「设置 (Settings)」→「插件 (Plugins)」→「市场来源 (Marketplaces)」**，点击 **「添加市场源 (Add Marketplace)」**。
+进入 Cindy 应用中的 **「设置 (Settings)」→「插件 (Plugins)」→「市场来源 (Marketplaces)」**，点击 **「添加市场源 (Add Marketplace)」**，填入下面这一个地址即可（**只有一个地址，不需要按架构选择**）：
 
-你可以根据自身设备需求，选择以下两种添加方式之一：
-
-### 推荐方式：按你的系统与芯片架构添加专属商店地址（极致瘦身，零异构文件）
-
-直接订阅与当前设备硬件 100% 匹配的架构专属分支，从源头**仅拉取当前芯片架构的原生程序（包体仅约 600KB ~ 850KB）**，完全不下载任何其他操作系统的冗余文件：
-
-| 操作系统 (`os`) | 芯片架构 (`arch`) | 适用设备说明 | 架构专属商店添加地址（直接复制） |
-| :--- | :--- | :--- | :--- |
-| **`macos`** | **`arm64`** | **Apple Silicon (M1 / M2 / M3 / M4 芯片全系列 Mac)** | `https://github.com/otaku-say/cindy-plugins#plat/macos-arm64` |
-| **`macos`** | **`amd64`** | **Intel 处理器系列 Mac** | `https://github.com/otaku-say/cindy-plugins#plat/macos-amd64` |
-| **`windows`** | **`amd64`** | **Windows 64位（Intel / AMD 处理器 PC / 笔记本）** | `https://github.com/otaku-say/cindy-plugins#plat/windows-amd64` |
-| **`windows`** | **`arm64`** | **Windows on ARM（骁龙 X Elite / Surface Pro 等）** | `https://github.com/otaku-say/cindy-plugins#plat/windows-arm64` |
-| **`linux`** | **`amd64`** | **Linux 64位（x86_64 架构服务器 / 工作站）** | `https://github.com/otaku-say/cindy-plugins#plat/linux-amd64` |
-| **`linux`** | **`arm64`** | **Linux ARM64（aarch64 架构云主机 / 边缘设备）** | `https://github.com/otaku-say/cindy-plugins#plat/linux-arm64` |
-
----
-
-### 通用方式：添加全架构主仓库地址（全平台通用）
-
-如果你经常在多台不同系统的设备间同步配置，可直接添加通用主仓库：
 ```text
 https://github.com/otaku-say/cindy-plugins
 ```
-*注：通用主仓库内嵌了全套架构矩阵，插件运行时会根据当前硬件自动加载对应的架构二进制，并立即自动物理清理所有异构平台目录。*
+
+添加后，市场清单会按当前设备的 `os` + `arch` **自动挑选对应的平台包**下载安装——你只会拿到与自己硬件匹配的那一份，不会下载其他操作系统的二进制。
+
+### 平台包是怎么来的
+
+本仓库的 `main` 分支**同时存放全部 6 个架构的二进制**，因此任何设备一次 `clone` 就能直接运行，不依赖额外的分支或子模块。适合分发的是按平台裁剪的 `.cindy` 包，它们由 CI 生成并挂在 [Releases](https://github.com/otaku-say/cindy-plugins/releases/latest) 上：
+
+| 操作系统 (`os`) | 芯片架构 (`arch`) | 适用设备 | 平台包 |
+| :--- | :--- | :--- | :--- |
+| **`macos`** | **`arm64`** | Apple Silicon（M 系列全系 Mac） | `<id>-<version>-macos-arm64.cindy` |
+| **`macos`** | **`amd64`** | Intel 处理器 Mac | `<id>-<version>-macos-amd64.cindy` |
+| **`windows`** | **`amd64`** | Windows 64 位（Intel / AMD） | `<id>-<version>-windows-amd64.cindy` |
+| **`windows`** | **`arm64`** | Windows on ARM（骁龙 X 系列等） | `<id>-<version>-windows-arm64.cindy` |
+| **`linux`** | **`amd64`** | Linux x86 服务器 / 工作站 | `<id>-<version>-linux-amd64.cindy` |
+| **`linux`** | **`arm64`** | Linux arm64 云主机 / 边缘设备 | `<id>-<version>-linux-arm64.cindy` |
+
+> 早期曾按架构拆出 `plat/<os>-<arch>` 轻量分支，现已废弃：二进制全部回归 `main`，分支已删除。
 
 ---
 
 ## 当前已收录插件
 
-| 插件 ID | 展示名称 | 指令前缀 | 架构覆盖 | 一句话说明 |
-| :--- | :--- | :--- | :--- | :--- |
-| **`cube-cli`** | **Cube CLI** | `$cube` | 6 架构全覆盖 | CubeSandbox 控制面遥控器：创建沙箱、生命周期启停、端口探测与元数据管理 |
-| **`aiod-cli`** | **Aiod CLI** | `$aiod` | 6 架构全覆盖 | 沙箱内部遥控器：文件读写传输、进程交互、浏览器遥控与 MCP Server |
+| 插件 ID | 展示名称 | 指令前缀 | 上游仓库 | 架构覆盖 | 一句话说明 |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| **`cube-cli`** | **Cube CLI** | `$cube` | [`otaku-say/cube-cli`](https://github.com/otaku-say/cube-cli) | 6 架构全覆盖 | CubeSandbox 控制面遥控器：创建沙箱、生命周期启停、端口探测与元数据管理 |
+| **`aiod-cli`** | **Aiod CLI** | `$aiod` | [`otaku-say/aiod-cli`](https://github.com/otaku-say/aiod-cli) | 6 架构全覆盖 | 沙箱内部遥控器：命令与文件、PTY、代码解释器、浏览器、桌面 computer-use 与 MCP Server |
 
 ---
 
@@ -54,18 +50,40 @@ https://github.com/otaku-say/cindy-plugins
 
 所有包含原生工具链或二进制的插件，均覆盖 6 种标准系统与芯片架构：
 
-| 平台标识 (`platform`) | 系统全称 (`os`) | 架构名称 (`arch`) | 编译 Target | 产物命名范式 |
-| :--- | :--- | :--- | :--- | :--- |
-| `macos-arm64` | `macos` | `arm64` | `aarch64-macos` | `<id>-<version>-macos-arm64.cindy` |
-| `macos-amd64` | `macos` | `amd64` | `x86_64-macos` | `<id>-<version>-macos-amd64.cindy` |
-| `windows-amd64` | `windows` | `amd64` | `x86_64-windows-gnu` | `<id>-<version>-windows-amd64.cindy` |
-| `windows-arm64` | `windows` | `arm64` | `aarch64-windows-gnu` | `<id>-<version>-windows-arm64.cindy` |
-| `linux-amd64` | `linux` | `amd64` | `x86_64-linux-musl` | `<id>-<version>-linux-amd64.cindy` |
-| `linux-arm64` | `linux` | `arm64` | `aarch64-linux-musl` | `<id>-<version>-linux-arm64.cindy` |
+| 平台标识 (`platform`) | 系统全称 (`os`) | 架构名称 (`arch`) | 上游编译 Target | 上游发布资产 | 本仓库产物 |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| `macos-arm64` | `macos` | `arm64` | `aarch64-macos` | `<tool>-macos-arm64` | `<id>-<version>-macos-arm64.cindy` |
+| `macos-amd64` | `macos` | `amd64` | `x86_64-macos` | `<tool>-macos-amd64` | `<id>-<version>-macos-amd64.cindy` |
+| `windows-amd64` | `windows` | `amd64` | `x86_64-windows-gnu` | `<tool>-windows-amd64.exe` | `<id>-<version>-windows-amd64.cindy` |
+| `windows-arm64` | `windows` | `arm64` | `aarch64-windows-gnu` | `<tool>-windows-arm64.exe` | `<id>-<version>-windows-arm64.cindy` |
+| `linux-amd64` | `linux` | `amd64` | `x86_64-linux-musl` | `<tool>-linux-amd64` | `<id>-<version>-linux-amd64.cindy` |
+| `linux-arm64` | `linux` | `arm64` | `aarch64-linux-musl` | `<tool>-linux-arm64` | `<id>-<version>-linux-arm64.cindy` |
+
+`zig` 的 `-Dtarget` 三元组只是编译器内部叫法；对外一律使用 `macos` / `windows` / `linux` 与 `arm64` / `amd64`。
 
 ---
 
-### 2. 企业级凭证安全隔离模型
+### 2. 上游版本同步
+
+带二进制的插件**不在这里手改代码**，二进制一律来自各自的上游独立仓库的 Release：
+
+| 插件 | 上游仓库 | 跟随对象 | 上游校验 |
+| :--- | :--- | :--- | :--- |
+| `cube-cli` | [otaku-say/cube-cli](https://github.com/otaku-say/cube-cli) | CubeSandbox 控制面 Python SDK（`TencentCloud/CubeSandbox`） | `scripts/sdk-coverage.json` 的 `synced_version` |
+| `aiod-cli` | [otaku-say/aiod-cli](https://github.com/otaku-say/aiod-cli) | 沙箱内 aiod 的 `/v2` API | `scripts/v2-coverage.json` 的 `spec.source` |
+
+同步链路（CI 全自动，见 `.github/workflows/build-market.yml`）：
+
+1. `build-market.py --fetch` 按 `scripts/manifest.json` 的 `upstream` 配置，从上游 `latest` Release 拉取 6 个平台资产；
+2. 用上游 `SHA256SUMS` 逐个校验，**校验不通过直接失败**，不会把坏二进制发出去；
+3. `embed-binaries.py` 把它们内嵌进 `plugins/<id>/bin/<os>-<arch>/`（`main` 分支自带全套架构）；
+4. `build-market.py` 生成单平台 `.cindy` 包与 `.agents/plugins/marketplace.json`，随 Release 发布。
+
+上游发版后，本仓库只需改 `scripts/manifest.json` 里的 `version` 并 push，CI 会完成拉取、校验、内嵌、打包、发布。
+
+---
+
+### 3. 企业级凭证安全隔离模型
 
 所有插件严格遵守 Cindy 安全红线，绝不在聊天上下文、模型输入或本地源码中明文传递密钥：
 - **敏感凭证（API Key）**：
@@ -79,7 +97,7 @@ https://github.com/otaku-say/cindy-plugins
 
 ---
 
-### 3. 长任务异步控制体系（三件套）
+### 4. 长任务异步控制体系（三件套）
 
 凡涉及沙箱镜像拉取、代码执行或长耗时任务，均提供非阻塞的异步执行规范：
 - `*_submit`：异步提交，返回唯一 `taskId` 并立即结清；
@@ -100,7 +118,7 @@ https://github.com/otaku-say/cindy-plugins
    - 必须提供 128x128 像素 PNG 高清图标。
 2. **多架构覆盖与命名统一**：
    - 必须在 `scripts/manifest.json` 中配置全平台构建矩阵映射，严格遵循 `macos`, `windows`, `linux` 与 `arm64`, `amd64` 命名；
-   - 由自动化工作流统一拉取上游发布资产、做 SHA256SUMS 强校验后生成单平台轻量包与平台孤立分支。
+   - 由自动化工作流统一拉取上游发布资产、做 SHA256SUMS 强校验后生成单平台轻量包；二进制统一存放在 `main` 分支的 `plugins/<id>/bin/<os>-<arch>/`，不再使用架构专属分支。
 3. **安全与幂等**：
    - 严格落实密钥安全隔离，所有操作与初始化流程必须具备幂等性（重复调用零副作用）。
 

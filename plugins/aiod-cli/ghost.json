@@ -4,7 +4,7 @@
   "name": "Aiod CLI",
   "description": "Remote control for the aiod v2 API inside a CubeSandbox: process execution, file management, browser and MCP.",
   "whenToUse": "Run commands, manage files, drive the browser, execute code or start an MCP server inside a CubeSandbox.",
-  "version": "0.1.5",
+  "version": "0.2.0",
   "minCindyVersion": "3.0.0",
   "entry": "main.js",
   "command": "aiod",
@@ -39,7 +39,7 @@
     },
     {
       "name": "aiod_health",
-      "description": "Check the in-sandbox aiod service health; returns { stdout, stderr, exitCode }.",
+      "description": "Check the in-sandbox aiod gateway health and version; returns { stdout, stderr, exitCode }.",
       "parameters": {
         "type": "object",
         "properties": {
@@ -52,7 +52,7 @@
     },
     {
       "name": "aiod_run",
-      "description": "Run an aiod-cli command (exec, files, pty, browser, misc...); returns { stdout, stderr, exitCode }.",
+      "description": "Run an aiod-cli command (exec, files, PTY, code, browser, watch, MCP); returns { stdout, stderr, exitCode }.",
       "parameters": {
         "type": "object",
         "properties": {

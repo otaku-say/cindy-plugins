@@ -121,3 +121,41 @@ test('my-env keeps no bulk plaintext export and guards reserved keys', () => {
     assert.ok(mainJs.includes(name), `main.js must guard reserved key ${name}`);
   }
 });
+
+test('带 upstream 的插件必须在 main 分支内嵌全部平台二进制', () => {
+  const manifest = JSON.parse(fs.readFileSync(path.join(ROOT, 'scripts', 'manifest.json'), 'utf-8'));
+  for (const [pid, pmeta] of Object.entries(manifest.plugins)) {
+    if (!pmeta.upstream) continue;
+    const supported = pmeta.upstream.supported_platforms || Object.keys(manifest.platforms);
+    for (const plat of supported) {
+      const pinfo = manifest.platforms[plat];
+      assert.ok(pinfo, `manifest.platforms 缺少 ${plat}`);
+      const exe = pmeta.upstream.binary_name.replace('{ext}', pinfo.ext);
+      const file = path.join(ROOT, 'plugins', pid, 'bin', plat, exe);
+      assert.ok(fs.existsSync(file), `${pid} 缺少 ${plat} 的二进制: plugins/${pid}/bin/${plat}/${exe}`);
+      assert.ok(fs.statSync(file).size > 100 * 1024, `${pid}/${plat} 二进制体积异常（疑似占位文件）`);
+    }
+  }
+});
+
+test('upstream 指向独立仓库，产物模板用 <tool>-<os>-<arch> 命名', () => {
+  const manifest = JSON.parse(fs.readFileSync(path.join(ROOT, 'scripts', 'manifest.json'), 'utf-8'));
+  for (const [pid, pmeta] of Object.entries(manifest.plugins)) {
+    if (!pmeta.upstream) continue;
+    const up = pmeta.upstream;
+    assert.ok(!/sandbox-cli/.test(up.repo), `${pid} 的 upstream 仍指向已拆分的 sandbox-cli`);
+    assert.match(up.repo, /^otaku-say\/[a-z0-9-]+$/, `${pid} 的 upstream.repo 格式不对: ${up.repo}`);
+    assert.ok(String(up.repo).endsWith(pid), `${pid} 的 upstream 应指向同名独立仓库，实际 ${up.repo}`);
+    assert.ok(up.artifact_template.includes('{os}') && up.artifact_template.includes('{arch}'),
+      `${pid} 的 artifact_template 必须用 {os}/{arch}（上游发布资产命名），实际 ${up.artifact_template}`);
+    assert.ok(!up.artifact_template.includes('-{target}'),
+      `${pid} 的 artifact_template 不能再按 zig 三元组拼文件名`);
+  }
+});
+
+test('文档里不再出现已废弃的架构专属分支地址', () => {
+  for (const rel of ['README.md', 'CONTRIBUTING.md']) {
+    const text = fs.readFileSync(path.join(ROOT, rel), 'utf-8');
+    assert.ok(!text.includes('#plat/'), `${rel} 仍包含 #plat/ 分支地址`);
+  }
+});

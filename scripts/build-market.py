@@ -87,7 +87,7 @@ def sync_upstream_for_plugin(plugin_id, plugin_meta, platforms):
 
         target = pinfo["target"]
         ext = pinfo["ext"]
-        artifact_name = artifact_tmpl.format(target=target, ext=ext)
+        artifact_name = artifact_tmpl.format(target=target, os=pinfo["os"], arch=pinfo["arch"], ext=ext)
         dest_file = plugin_cache / artifact_name
 
         if not dest_file.exists():
@@ -117,7 +117,13 @@ def zip_directory(src_dir, dest_zip_path):
                     continue
                 full_path = Path(root) / file
                 rel_path = full_path.relative_to(src_dir)
-                zf.write(full_path, arcname=str(rel_path))
+                # 固定时间戳 + 固定权限：同样的内容必须打出同样的 SHA256，
+                # 否则每次 CI 都会因包体哈希变化而重写 marketplace.json，产生无意义的脏 diff。
+                info = zipfile.ZipInfo(str(rel_path), date_time=(1980, 1, 1, 0, 0, 0))
+                info.external_attr = (0o755 if os.access(full_path, os.X_OK) else 0o644) << 16
+                info.compress_type = zipfile.ZIP_DEFLATED
+                with open(full_path, "rb") as fh:
+                    zf.writestr(info, fh.read())
 
 def build_all():
     manifest = load_manifest()
@@ -242,54 +248,15 @@ def build_all():
         kb = meta["size"] / 1024
         print(f"  - {meta['filename']:40} | {kb:6.1f} KB | SHA256: {meta['sha256'][:12]}...")
 
-def push_all_branches(manifest):
-    platforms = manifest["platforms"]
-    token = os.environ.get("GITHUB_TOKEN")
-    owner = manifest["owner"]
-    repo = manifest["repo"]
-    if token:
-        remote_url = f"https://x-access-token:{token}@github.com/{owner}/{repo}.git"
-    else:
-        remote_url = "origin"
-
-    import subprocess
-
-    # 1. 自动删除旧规范遗留分支
-    old_branches = ["plat/linux-x64", "plat/macos-x64", "plat/win-x64", "plat/win-arm64"]
-    print("=== 清理旧命名遗留分支 ===")
-    for old_b in old_branches:
-        res = subprocess.run(["git", "push", remote_url, "--delete", old_b], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        if res.returncode == 0:
-            print(f"  [DELETED] 已清理旧分支: {old_b}")
-
-    # 2. 推送全新的标准规范分支
-    print("=== 开始更新各平台标准轻量分支 (plat/<os>-<arch>) ===")
-    for plat_name in platforms.keys():
-        plat_dir = PLATFORMS_DIST / plat_name
-        if not plat_dir.exists():
-            continue
-        print(f"[*] 推送标准平台分支: plat/{plat_name} ...")
-        git_dir = plat_dir / ".git"
-        if git_dir.exists():
-            shutil.rmtree(git_dir)
-
-        subprocess.run(["git", "init"], cwd=plat_dir, check=True, stdout=subprocess.DEVNULL)
-        subprocess.run(["git", "config", "user.name", "github-actions[bot]"], cwd=plat_dir, check=True)
-        subprocess.run(["git", "config", "user.email", "github-actions[bot]@users.noreply.github.com"], cwd=plat_dir, check=True)
-        subprocess.run(["git", "add", "-A"], cwd=plat_dir, check=True)
-        subprocess.run(["git", "commit", "-m", f"chore(release): auto-assembled {plat_name} packages"], cwd=plat_dir, check=True, stdout=subprocess.DEVNULL)
-        res = subprocess.run(["git", "push", remote_url, f"HEAD:refs/heads/plat/{plat_name}", "--force"], cwd=plat_dir)
-        if res.returncode == 0:
-            print(f"  [OK] plat/{plat_name} 推送成功！")
-        else:
-            print(f"  [FAIL] plat/{plat_name} 推送失败！")
-
 if __name__ == "__main__":
     import traceback
     try:
-        if "--push-branches" in sys.argv:
+        if "--fetch" in sys.argv:
+            # 只把上游发布资产拉到 .cache/upstream（供 embed-binaries.py 内嵌进 main）
             m = load_manifest()
-            push_all_branches(m)
+            for pid, pmeta in m["plugins"].items():
+                if pmeta.get("upstream"):
+                    sync_upstream_for_plugin(pid, pmeta, m["platforms"])
         else:
             build_all()
     except Exception as e:

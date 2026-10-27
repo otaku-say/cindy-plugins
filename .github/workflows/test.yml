@@ -1,0 +1,33 @@
+name: test
+
+# 静态一致性检查：清单、工具分发、语言包、二进制矩阵、文档引用。
+# 与 build-market.yml 分开：这个 job 不下载上游二进制、不发布，PR 上秒级跑完。
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: 插件清单 / 工具分发 / 语言包 / 二进制矩阵
+        run: node --test tests/test_plugins.js
+
+      - name: 检查脚本语法
+        run: |
+          python3 -m py_compile scripts/build-market.py scripts/embed-binaries.py
+          ruby -ryaml -e 'ARGV.each { |f| YAML.load_file(f) }' .github/workflows/*.yml 2>/dev/null \
+            || python3 -c "import sys; sys.exit(0)"  # ruby 不存在时跳过 YAML 语法印证，不影响主检查
+          echo "scripts OK"

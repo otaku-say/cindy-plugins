@@ -15,7 +15,7 @@
     "aiod_run": {
       "description": "Run an aiod-cli command (exec, files, pty, browser, misc...); returns { stdout, stderr, exitCode }.",
       "parameters": {
-        "/properties/cmd": { "description": "Subcommand name, e.g. exec, ls, cat, write, upload, download, browser." },
+        "/properties/cmd": { "description": "Subcommand name, e.g. exec, async, cat, put, get, ls, pty-new, br-go, code, mcp-server." },
         "/properties/args": { "description": "Arguments for the subcommand." },
         "/properties/base": { "description": "Gateway URL of a specific sandbox instance." }
       }

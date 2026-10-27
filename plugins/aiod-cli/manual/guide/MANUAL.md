@@ -1,81 +1,136 @@
 # Aiod CLI（沙箱内部系统能力）完整使用手册
 
-`aiod-cli` 是深入 **CubeSandbox 云端沙箱容器内部的底层控制遥控器**。它通过 aiod v2 REST/WebSocket API 与容器内部守护进程通信，提供对沙箱内文件系统、多进程管道、无头浏览器与 MCP Server 的深度操作。
+`aiod-cli` 是深入 **CubeSandbox 云端沙箱容器内部**的遥控器：通过沙箱内 aiod 的 **v2 REST / WebSocket API** 操作文件系统、进程、PTY、代码解释器、浏览器、文件监听与 MCP Hub。
+
+- 上游仓库：[`otaku-say/aiod-cli`](https://github.com/otaku-say/aiod-cli)（命令手册 `docs/aiod-cli.md`，命令表 `src/help.zig`）
+- 每个平台只带自己那一个**静态单文件**二进制（无运行时依赖）；Windows 也是原生单文件，不是包装脚本。
+- 建沙箱、模板、快照、卷是另一个工具 `cube-cli`。
 
 ---
 
 ## 什么时候主动使用本插件？
 
-当遇到以下任意场景时，Agent 应主动调用 `aiod-cli`：
-1. **沙箱内文件系统深度管理**：
-   - 需要在沙箱内部读取、写入、删除大文件（`cat`, `write`, `rm`）；
-   - 需要向沙箱上传本地项目、或将沙箱内的计算成果打包下载（`upload`, `download`）；
-2. **沙箱内无头浏览器遥控**：
-   - 沙箱内预装了 Chromium 运行时，需要自动化打开网页、提取 DOM、抓取截图或执行页面爬虫时（`browser` 子命令族）；
-3. **沙箱内进程守护与交互终端**：
-   - 需要在沙箱内启动后台守护服务，或者通过 PTY 原语进行实时交互式终端调试；
-4. **启动沙箱内 MCP Server**：
-   - 需要把沙箱内运行的工具包装为 stdio MCP 供上层协议调用（`mcp-server` 模式）。
+1. **在沙箱内执行命令**：构建、跑测试、装包——尤其是本地缺依赖或不想污染本机的场景；
+2. **沙箱内文件操作**：读写、上传下载、批量拷贝、按正则搜内容、整棵目录树打包传输；
+3. **交互式终端**：需要常驻 shell、改窗口大小、发信号，或要 WebSocket 附着一个 PTY 会话；
+4. **代码解释器**：用带状态的 Python/JS 内核跑片段（变量跨次保留）；
+5. **无头浏览器**：导航、截图、执行 JS、点填、抓可访问性快照与网络请求（需浏览器镜像）；
+6. **桌面 computer-use**：截图、鼠标键盘、无障碍树（需 computer 镜像）；
+7. **文件监听**：等某目录出现变更，或长轮询/SSE 收事件；
+8. **把沙箱内能力包成 MCP**：以 stdio MCP Server 形式接入上层协议。
 
 ---
 
-## 配置与准备（网关与鉴权）
+## 配置与准备
 
-- **`SANDBOX_BASE`**：沙箱内部 aiod 服务网关地址（例如通过 `cube new` 输出的 `https://<proxy>/sandbox/<sid>/8080`，可保存在设置页 `/kv`，也可在每次工具调用中通过 `base` 参数覆盖）；
-- **`SANDBOX_KEY`**：沙箱鉴权 Key（可选，若容器配置了安全访问 Token，保存在 safeStorage 中）。
+| 变量 | 必填 | 说明 |
+|---|---|---|
+| `SANDBOX_BASE` | 是（`help` 除外） | aiod 网关地址。`cube-cli new` 打印的 `[sandbox] AIO 网关:` 那行就是它 |
+| `SANDBOX_KEY` | 否 | 鉴权 Key。非空时以 `X-API-KEY` 头发送 |
 
----
+`SANDBOX_BASE` 两种写法（末尾 `/` 可有可无）：
 
-## 核心工具与调用指引
+```bash
+export SANDBOX_BASE="https://<网关>/sandbox/<sandboxID>/8080"   # 从本机/任意地方遥控
+export SANDBOX_BASE="http://127.0.0.1:8080"                     # 在沙箱内部自测
+```
 
-本插件在 Cindy 中向 Agent 暴露以下标准化工具：
-
-### 1. `aiod_health`
-检查目标沙箱网关的连接健康状态与 aiod 版本。
-- **参数**：
-  - `base` (string, 可选)：指定特定沙箱的网关地址，缺省使用设置页默认值。
-
-### 2. `aiod_version`
-返回当前 CLI 的版本号与编译目标架构（如 `aarch64-macos`）。
-- **参数**：无
-
-### 3. `aiod_run`
-同步执行 aiod-cli 容器操作命令。
-- **参数**：
-  - `cmd` (string, 必填)：要执行的子命令名称；
-  - `args` (array of string, 可选)：参数列表；
-  - `base` (string, 可选)：指定沙箱实例网关。
-
-#### 常用命令速查：
-- **容器内执行命令**：
-  ```json
-  { "cmd": "exec", "args": ["python3", "-c", "import sys; print(sys.version)"] }
-  ```
-- **读取容器内文件**：
-  ```json
-  { "cmd": "cat", "args": ["/workspace/output.txt"] }
-  ```
-- **向容器内写入文件**：
-  ```json
-  { "cmd": "write", "args": ["/workspace/script.py", "print('hello world')"] }
-  ```
-- **列出容器内指定目录**：
-  ```json
-  { "cmd": "ls", "args": ["/workspace"] }
-  ```
-- **遥控浏览器截图**：
-  ```json
-  { "cmd": "browser", "args": ["screenshot", "--url=https://example.com", "--out=/workspace/page.png"] }
-  ```
-
-### 4. 异步长任务三件套（`aiod_submit` / `aiod_log` / `aiod_kill`）
-- `aiod_submit({ cmd: "exec", args: ["npm", "run", "build"] })` 启动长时间编译任务；
-- `aiod_log({ taskId: "..." })` 实时跟进控制台日志；
-- `aiod_kill({ taskId: "..." })` 中止失控或死循环进程。
+插件侧：设置页或 `/kv` 保存的是默认值，单次调用可用工具的 `base` 参数覆盖（**不会**改动已保存的值）。
 
 ---
 
-## 常见错误与恢复策略
+## 插件暴露的工具
 
-- `缺少环境变量 SANDBOX_BASE`：说明尚未配置沙箱网关地址。请先通过 `cube-cli new` 获取新建沙箱的网关地址，并在 `aiod_run` 的 `base` 参数中传入，或在设置页保存；
-- `Connection Refused`：说明沙箱可能已被暂停（paused）或正在启动中。请先通过 `cube_run` 确认沙箱处于运行状态。
+| 工具 | 作用 | 关键参数 |
+|---|---|---|
+| `aiod_version` | 版本 + 本机平台 | 无 |
+| `aiod_health` | 网关健康检查与 aiod 版本 | `base` |
+| `aiod_run` | 同步执行任意子命令，返回 `{stdout, stderr, exitCode}` | `cmd`、`args[]`、`base` |
+| `aiod_submit` | 异步派发长任务，立即返回 `taskId` | `cmd`、`args[]`、`base` |
+| `aiod_log` | 取异步任务输出（可按行偏移增量读） | `taskId`、`offset` |
+| `aiod_kill` | 终止异步任务 | `taskId` |
+
+> `aiod_run` 单次最长 15 分钟且「有输出即续期」。真正的长任务（大构建、镜像拉取）请走 `aiod_submit` + `aiod_log`，不要阻塞会话。
+
+---
+
+## 常用命令速查（按 `aiod-cli help all` 分组）
+
+**执行**
+```json
+{ "cmd": "exec",   "args": ["python3 -c 'import sys; print(sys.version)'", "--cwd=/root"] }
+{ "cmd": "async",  "args": ["npm ci && npm run build"] }
+{ "cmd": "log",    "args": ["<command_id>", "--follow"] }
+{ "cmd": "kill",   "args": ["<command_id>"] }
+{ "cmd": "stdin",  "args": ["<command_id>", "y"] }
+{ "cmd": "sess-new", "args": ["build", "--cwd=/root/repo"] }
+{ "cmd": "sess",   "args": ["build", "make -j4"] }
+```
+
+**文件**
+```json
+{ "cmd": "cat",  "args": ["/root/app.log"] }
+{ "cmd": "put",  "args": ["./a.md", "/root/a.md"] }
+{ "cmd": "get",  "args": ["/root/out.tar", "./out.tar"] }
+{ "cmd": "fs-tree-put", "args": ["./repo.tar.gz", "/root/repo"] }
+{ "cmd": "ls",   "args": ["/root", "--recursive"] }
+{ "cmd": "grep", "args": ["/root/src", "TODO", "--include=*.zig"] }
+{ "cmd": "edit", "args": ["/root/a.txt", "--old=v1", "--new=v2"] }
+{ "cmd": "rm",   "args": ["/root/tmp", "--recursive"] }
+```
+`put` 大文件自动分块（8 MiB/段，沙箱内拼接）；上传用独立暂存名，**不会动你的源文件**。
+
+**终端 PTY / WebSocket**
+```json
+{ "cmd": "pty-new",  "args": ["t1", "--cwd=/root"] }
+{ "cmd": "pty",      "args": ["t1", "vim app.py"] }
+{ "cmd": "pty-screen", "args": ["t1"] }
+{ "cmd": "pty-input","args": ["t1", ":wq", "--enter"] }
+{ "cmd": "pty-ws",   "args": ["t1", "--send=echo hi", "--max=6"] }
+{ "cmd": "pty-ws-anon", "args": ["--max=6"] }
+```
+`SANDBOX_BASE` 是 `https://` 时自动走 `wss://`。
+
+**代码 / 浏览器 / 监听**
+```json
+{ "cmd": "code",     "args": ["print(1+1)", "--lang=python"] }
+{ "cmd": "br-go",    "args": ["https://example.com"] }
+{ "cmd": "br-shot",  "args": ["page.png", "--full"] }
+{ "cmd": "br-eval",  "args": ["document.title"] }
+{ "cmd": "br-tabs",  "args": [] }
+{ "cmd": "watch",    "args": ["/root/repo", "--recursive"] }
+{ "cmd": "watch-poll", "args": ["<watch_id>"] }
+```
+
+**MCP**
+```json
+{ "cmd": "mcp-server", "args": [] }
+```
+以 stdio MCP Server 运行，暴露 65 个工具（`exec_*` / `file_*` / `pty_*` / `browser_*` / `desktop_*` / `code_*` / `watch_*` / `mcp_hub`）。完整清单以 `tools/list` 为准。
+
+---
+
+## 退出码约定（与上游一致）
+
+沙箱内命令的退出码通过 `{stdout, stderr, exitCode}` 原样回给 Agent：
+
+| 情况 | `exitCode` |
+|---|---|
+| 命令成功 | `0` |
+| 命令失败 | 真实退出码（1–255） |
+| 硬超时（`status=timed_out`） | `124`（同 `timeout(1)`） |
+| 被信号杀死（`exit_code<0`） | `1` |
+| 网关/参数/配置错误 | 非 0，且 `stderr` 给出可读原因 |
+
+判断成败请看 `exitCode`，不要靠输出文本猜。
+
+---
+
+## 常见错误与恢复
+
+- **`缺少环境变量 SANDBOX_BASE`**：还没配网关。先用 `cube-cli new` 建沙箱，把打印的 `AIO 网关` 地址填进设置页或用 `base` 参数传入。
+- **`Connection Refused` / `HTTP 404`**：沙箱可能已暂停或已销毁。先 `cube_health` / `cube_run { cmd: "ls" }` 确认实例还在。
+- **`HTTP 401`**：部署启用了鉴权但 `SANDBOX_KEY` 没配（或为空）。注意空字符串等于未设置。
+- **`HTTP 409 destination already exists`**：`put`/`write` 目标已存在，需要覆盖就加 `--overwrite`。
+- **`exitCode 124`**：命令超时被强杀。改用 `aiod_submit` 异步跑，或调大 `--hard-timeout`。
+- **`pty-ws` 握手失败**：`wss://` 只校验证书主机名、**不验证 CA 证书链**（自签也能连），不可信网络下请改用 `ws://` 隧道或在受信网络内使用。

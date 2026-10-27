@@ -15,7 +15,7 @@
     "aiod_run": {
       "description": "执行 aiod-cli 命令（exec、files、pty、browser、misc 等）；返回 { stdout, stderr, exitCode }。",
       "parameters": {
-        "/properties/cmd": { "description": "子命令名称，如 exec、ls、cat、write、upload、download、browser。" },
+        "/properties/cmd": { "description": "子命令名称，如 exec、async、cat、put、get、ls、pty-new、br-go、code、mcp-server。" },
         "/properties/args": { "description": "传给子命令的参数。" },
         "/properties/base": { "description": "指定沙箱实例的网关地址。" }
       }

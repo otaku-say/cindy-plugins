@@ -13,32 +13,15 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 CACHE = ROOT / ".cache" / "upstream"
 
-# 6 大标准架构平台与上游 target 映射规范
+# 6 大标准架构平台；上游发布资产命名固定为 <tool>-<os>-<arch>[.exe]
+# （target 只用于文档/排查对照，不参与文件名拼接）
 STANDARD_PLATFORMS = {
-    "macos-arm64": {
-        "target": "aarch64-macos",
-        "ext": ""
-    },
-    "macos-amd64": {
-        "target": "x86_64-macos",
-        "ext": ""
-    },
-    "windows-amd64": {
-        "target": "x86_64-windows-gnu",
-        "ext": ".exe"
-    },
-    "windows-arm64": {
-        "target": "aarch64-windows-gnu",
-        "ext": ".exe"
-    },
-    "linux-amd64": {
-        "target": "x86_64-linux-musl",
-        "ext": ""
-    },
-    "linux-arm64": {
-        "target": "aarch64-linux-musl",
-        "ext": ""
-    }
+    "macos-arm64":   {"os": "macos",   "arch": "arm64", "target": "aarch64-macos",       "ext": ""},
+    "macos-amd64":   {"os": "macos",   "arch": "amd64", "target": "x86_64-macos",        "ext": ""},
+    "windows-amd64": {"os": "windows", "arch": "amd64", "target": "x86_64-windows-gnu",  "ext": ".exe"},
+    "windows-arm64": {"os": "windows", "arch": "arm64", "target": "aarch64-windows-gnu", "ext": ".exe"},
+    "linux-amd64":   {"os": "linux",   "arch": "amd64", "target": "x86_64-linux-musl",   "ext": ""},
+    "linux-arm64":   {"os": "linux",   "arch": "arm64", "target": "aarch64-linux-musl",  "ext": ""},
 }
 
 def embed():
@@ -61,10 +44,9 @@ def embed():
         
         # 2. 内嵌标准架构二进制
         for plat_name, pinfo in STANDARD_PLATFORMS.items():
-            target = pinfo["target"]
             ext = pinfo["ext"]
             exe_name = f"{bin_base}{ext}"
-            artifact_name = f"{bin_base}-{target}{ext}"
+            artifact_name = f"{bin_base}-{pinfo['os']}-{pinfo['arch']}{ext}"
             
             src = CACHE / pid / artifact_name
             if not src.exists():
