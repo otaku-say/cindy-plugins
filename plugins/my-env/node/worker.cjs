@@ -367,6 +367,15 @@ const methods = {
 
       proc.on('error', (err) => {
         clearTimeout(timer);
+        // ENOENT 是最常见的误用：command 不在这台机器的 PATH 里（例如 Windows 上没有
+        // bash / grep）。原始 "spawn bash ENOENT" 对调用方毫无指引，这里补上可用做法。
+        if (err && err.code === 'ENOENT') {
+          const hint = isWin
+            ? "该命令不在 PATH 中。Windows 可改用 cmd、powershell、node，或写完整路径（如 C:\Program Files\Git\bin\bash.exe）。"
+            : '该命令不在 PATH 中，请检查是否已安装，或改用绝对路径。';
+          reject(new Error(`无法启动命令 "${command}"：${hint}`));
+          return;
+        }
         reject(err);
       });
 

@@ -6,48 +6,82 @@
     "env_list": {
       "description": "列出已存变量（脱敏值、备注、更新时间）；返回 { total, items }。敏感项在此处恒为全掩码。",
       "parameters": {
-        "/properties/query": { "description": "可选关键词，匹配变量名或备注。" }
+        "/properties/query": {
+          "description": "可选关键词，匹配变量名或备注。"
+        }
       }
     },
     "env_get": {
       "description": "返回单个变量的明文值；返回 { key, value, memo, sensitive, updatedAt }。仅当命令确实需要该值时调用，且绝不回传到对话中。",
       "parameters": {
-        "/properties/key": { "description": "变量键名，如 GITHUB_TOKEN。" }
+        "/properties/key": {
+          "description": "变量键名，如 GITHUB_TOKEN。"
+        }
       }
     },
     "env_set": {
       "description": "新增或更新单个变量；返回 { key, message, maskedValue, sensitive }。",
       "parameters": {
-        "/properties/key": { "description": "变量键名，仅字母、数字与下划线。" },
-        "/properties/value": { "description": "要保存的值。" },
-        "/properties/memo": { "description": "该变量用途的简短备注。" },
-        "/properties/sensitive": { "description": "标记为敏感，列表将展示全掩码。缺省沿用原标记，新键缺省为 true。" }
+        "/properties/key": {
+          "description": "变量键名，仅字母、数字与下划线。"
+        },
+        "/properties/value": {
+          "description": "要保存的值。"
+        },
+        "/properties/memo": {
+          "description": "该变量用途的简短备注。"
+        },
+        "/properties/sensitive": {
+          "description": "标记为敏感，列表将展示全掩码。缺省沿用原标记，新键缺省为 true。"
+        }
       }
     },
     "env_delete": {
       "description": "删除单个变量；返回 { key, deleted }。",
       "parameters": {
-        "/properties/key": { "description": "要删除的变量键名。" }
+        "/properties/key": {
+          "description": "要删除的变量键名。"
+        }
       }
     },
     "env_write_file": {
       "description": "安全将指定环境变量写入目标文件（.env、Shell 脚本或 JSON），对话与工具卡片不回传明文。适用于沙箱、容器或本地工作区注入。",
       "parameters": {
-        "/properties/target_path": { "description": "目标文件路径（例如 '.env'、'/var/minis/workspace/.env' 或 'env.sh'）。" },
-        "/properties/keys": { "description": "可选键名列表。省略或为空则写入全部已存变量。" },
-        "/properties/format": { "description": "文件格式：'dotenv'（KEY=\"VAL\"）、'shell'（export KEY=\"VAL\"）或 'json'。缺省为 'dotenv'。" },
-        "/properties/overwrite": { "description": "目标文件已存在时是否覆盖。缺省为 true。" },
-        "/properties/file_mode": { "description": "POSIX 系统下的八进制文件权限（如 '0600' 仅所有者读写）。缺省为 '0600'。Windows 自动忽略。" }
+        "/properties/target_path": {
+          "description": "目标文件路径（例如 '.env'、'/var/minis/workspace/.env' 或 'env.sh'）。"
+        },
+        "/properties/keys": {
+          "description": "可选键名列表。省略或为空则写入全部已存变量。"
+        },
+        "/properties/format": {
+          "description": "文件格式：'dotenv'（KEY=\"VAL\"）、'shell'（export KEY=\"VAL\"）或 'json'。缺省为 'dotenv'。"
+        },
+        "/properties/overwrite": {
+          "description": "目标文件已存在时是否覆盖。缺省为 true。"
+        },
+        "/properties/file_mode": {
+          "description": "POSIX 系统下的八进制文件权限（如 '0600' 仅所有者读写）。缺省为 '0600'。Windows 自动忽略。"
+        }
       }
     },
     "env_exec": {
       "description": "执行本地命令并在进程级直接注入所选环境变量，对话与工具参数中不出现密钥明文。输出会自动脱敏脱敏敏感项。",
       "parameters": {
-        "/properties/command": { "description": "可执行程序或命令名称（如 'npm'、'python'、'git'、'curl'）。" },
-        "/properties/args": { "description": "命令参数字符串数组。" },
-        "/properties/keys": { "description": "需要注入的环境变量键名列表。省略或为空则注入全部已存变量。" },
-        "/properties/cwd": { "description": "命令执行的工作目录。缺省为当前目录。" },
-        "/properties/timeout_ms": { "description": "执行超时时间毫秒数（1000–300000）。缺省为 30000。" }
+        "/properties/command": {
+          "description": "可执行程序或命令名称（如 'npm'、'python'、'git'、'curl'）。"
+        },
+        "/properties/args": {
+          "description": "命令参数字符串数组。"
+        },
+        "/properties/keys": {
+          "description": "需要注入的环境变量键名列表。省略或为空则注入全部已存变量。"
+        },
+        "/properties/cwd": {
+          "description": "命令执行的工作目录。缺省为当前目录。"
+        },
+        "/properties/timeout_ms": {
+          "description": "执行超时毫秒数（1000–300000）。缺省 30000。宿主单次请求硬上限 120s，因此约 115s 内没有任何输出的命令会被中断；长时间静默任务请放后台执行。"
+        }
       }
     }
   }

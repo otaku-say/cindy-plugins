@@ -4,7 +4,7 @@
   "name": "My Env",
   "description": "Cross-platform environment variables and secret manager: safely inject credentials into cloud sandboxes, containers and local commands without chat leakage.",
   "whenToUse": "Look up, manage or inject environment variables and credentials into sandboxes, containers or local commands without exposing plaintext in chat.",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "minCindyVersion": "3.0.0",
   "entry": "main.js",
   "command": "env",
@@ -55,7 +55,9 @@
             "description": "Variable key name, for example GITHUB_TOKEN."
           }
         },
-        "required": ["key"]
+        "required": [
+          "key"
+        ]
       }
     },
     {
@@ -81,7 +83,10 @@
             "description": "Mark as sensitive so the list shows a full mask. Defaults to the existing flag, or true for a new key."
           }
         },
-        "required": ["key", "value"]
+        "required": [
+          "key",
+          "value"
+        ]
       }
     },
     {
@@ -95,7 +100,9 @@
             "description": "Key name of the variable to delete."
           }
         },
-        "required": ["key"]
+        "required": [
+          "key"
+        ]
       }
     },
     {
@@ -110,12 +117,18 @@
           },
           "keys": {
             "type": "array",
-            "items": { "type": "string" },
+            "items": {
+              "type": "string"
+            },
             "description": "Optional list of variable keys to include. Omit or leave empty to write all stored variables."
           },
           "format": {
             "type": "string",
-            "enum": ["dotenv", "shell", "json"],
+            "enum": [
+              "dotenv",
+              "shell",
+              "json"
+            ],
             "description": "Output format: 'dotenv' (KEY=\"VAL\"), 'shell' (export KEY=\"VAL\"), or 'json'. Defaults to 'dotenv'."
           },
           "overwrite": {
@@ -127,7 +140,9 @@
             "description": "Octal file permissions on POSIX systems (e.g. '0600' for user read/write only). Defaults to '0600'. Ignored on Windows."
           }
         },
-        "required": ["target_path"]
+        "required": [
+          "target_path"
+        ]
       }
     },
     {
@@ -142,12 +157,16 @@
           },
           "args": {
             "type": "array",
-            "items": { "type": "string" },
+            "items": {
+              "type": "string"
+            },
             "description": "Command line arguments as an array of strings."
           },
           "keys": {
             "type": "array",
-            "items": { "type": "string" },
+            "items": {
+              "type": "string"
+            },
             "description": "List of variable keys to inject from my-env into the command's environment. Omit or leave empty to inject all stored variables."
           },
           "cwd": {
@@ -156,10 +175,12 @@
           },
           "timeout_ms": {
             "type": "integer",
-            "description": "Execution timeout in milliseconds (1000–300000). Defaults to 30000."
+            "description": "Execution timeout in ms (1000-300000, default 30000). The host caps a single node request at 120000 ms, so a command that produces no output for ~115 s is interrupted; use a background job for longer silent work."
           }
         },
-        "required": ["command"]
+        "required": [
+          "command"
+        ]
       }
     }
   ]

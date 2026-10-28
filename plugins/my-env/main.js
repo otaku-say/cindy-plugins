@@ -7,11 +7,31 @@
 const RESERVED = new Set(['__proto__', 'constructor', 'prototype']);
 const CHANNEL = 'my-env';
 
+// 宿主 cindy.node.request 的硬约束（越界会被整条调用拒收，错误码 INVALID_REQUEST）：
+//   timeoutMs   <= 120000
+//   maxTotalMs  <= 900000 且 >= timeoutMs
+// 因此对外承诺的 timeout_ms 上限(MAX_EXEC_TIMEOUT_MS)不能直接 +5s 丢给宿主。
+const RPC_MAX_TIMEOUT_MS = 120000;
+const RPC_MAX_TOTAL_MS = 900000;
+const MAX_EXEC_TIMEOUT_MS = 300000;
+
+function rpcBudget(method, params) {
+  if (method !== 'env/exec') return { timeoutMs: 30000 };
+  const want = Math.min(
+    Math.max(Number(params && params.timeout_ms) || 30000, 1000),
+    MAX_EXEC_TIMEOUT_MS
+  );
+  return {
+    timeoutMs: Math.min(want + 5000, RPC_MAX_TIMEOUT_MS),
+    maxTotalMs: Math.min(want + 10000, RPC_MAX_TOTAL_MS)
+  };
+}
+
 async function callNode(method, params) {
   const res = await cindy.node.request({
     method,
     params: params || {},
-    timeoutMs: method === 'env/exec' ? (Number(params?.timeout_ms) || 30000) + 5000 : 30000
+    ...rpcBudget(method, params)
   });
   if (!res || !res.ok) {
     const reason = (res && (res.message || res.errorCode)) || 'Node 工作进程执行失败';
