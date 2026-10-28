@@ -126,7 +126,7 @@
       "id": "aiod-cli",
       "name": "Aiod CLI",
       "description": "CubeSandbox 沙箱内 aiod v2 API 遥控器：进程执行、文件管理、浏览器与 MCP",
-      "version": "0.2.1",
+      "version": "0.2.2",
       "command": "aiod",
       "author": "otaku-say",
       "source": "plugins/aiod-cli",
@@ -146,8 +146,8 @@
           "os": "macos",
           "arch": "arm64",
           "target": "aarch64-macos",
-          "download_url": "https://github.com/otaku-say/cindy-plugins/releases/download/v0.2.2/aiod-cli-0.2.1-macos-arm64.cindy",
-          "sha256": "cea6033c79b56874e77a2aa353eb17dd59b577ace601e52036a322705e859c70",
+          "download_url": "https://github.com/otaku-say/cindy-plugins/releases/download/v0.2.2/aiod-cli-0.2.2-macos-arm64.cindy",
+          "sha256": "4b64f787e98312af8c072c4e7b38e9e8bb9e249f1f239db0e7d3ffe0a39628e5",
           "size": 639954
         },
         "macos-amd64": {
@@ -155,8 +155,8 @@
           "os": "macos",
           "arch": "amd64",
           "target": "x86_64-macos",
-          "download_url": "https://github.com/otaku-say/cindy-plugins/releases/download/v0.2.2/aiod-cli-0.2.1-macos-amd64.cindy",
-          "sha256": "2ad38e91032f06232344f7b5ead11ae1b66914146aeb78bac0add4585cece934",
+          "download_url": "https://github.com/otaku-say/cindy-plugins/releases/download/v0.2.2/aiod-cli-0.2.2-macos-amd64.cindy",
+          "sha256": "377260da4f648c17b5faae139a3d6e4e5ed92534b80a347ceb2993c260c487c9",
           "size": 703962
         },
         "windows-amd64": {
@@ -164,8 +164,8 @@
           "os": "windows",
           "arch": "amd64",
           "target": "x86_64-windows-gnu",
-          "download_url": "https://github.com/otaku-say/cindy-plugins/releases/download/v0.2.2/aiod-cli-0.2.1-windows-amd64.cindy",
-          "sha256": "4d3c6d6f852c531a0ac811d591904465377c7456237f01665e1d6f30c0f11b2b",
+          "download_url": "https://github.com/otaku-say/cindy-plugins/releases/download/v0.2.2/aiod-cli-0.2.2-windows-amd64.cindy",
+          "sha256": "459d7a97ff5faaf78048040fa72995863cc54e08e793a838612cb385f9d39abd",
           "size": 763930
         },
         "windows-arm64": {
@@ -173,8 +173,8 @@
           "os": "windows",
           "arch": "arm64",
           "target": "aarch64-windows-gnu",
-          "download_url": "https://github.com/otaku-say/cindy-plugins/releases/download/v0.2.2/aiod-cli-0.2.1-windows-arm64.cindy",
-          "sha256": "0daeaabbbb7680ad8ab3e2b8c178f16d5d74e7804e5f440cdc3957636b2dfbd0",
+          "download_url": "https://github.com/otaku-say/cindy-plugins/releases/download/v0.2.2/aiod-cli-0.2.2-windows-arm64.cindy",
+          "sha256": "e7003b68e706ebeb73bc6b96d280da9a26c14d885a6a7935a9e3fe4f67b9cfc4",
           "size": 684830
         },
         "linux-amd64": {
@@ -182,8 +182,8 @@
           "os": "linux",
           "arch": "amd64",
           "target": "x86_64-linux-musl",
-          "download_url": "https://github.com/otaku-say/cindy-plugins/releases/download/v0.2.2/aiod-cli-0.2.1-linux-amd64.cindy",
-          "sha256": "166f74c8f4aa6f7a83f6e1895bc9fc0e6e529b449d8665182d7e88102c4d72ec",
+          "download_url": "https://github.com/otaku-say/cindy-plugins/releases/download/v0.2.2/aiod-cli-0.2.2-linux-amd64.cindy",
+          "sha256": "1251273fcf095485d108f722f8e62934e2892eed62dbfc9cf1ff51a44c1820a4",
           "size": 748285
         },
         "linux-arm64": {
@@ -191,8 +191,8 @@
           "os": "linux",
           "arch": "arm64",
           "target": "aarch64-linux-musl",
-          "download_url": "https://github.com/otaku-say/cindy-plugins/releases/download/v0.2.2/aiod-cli-0.2.1-linux-arm64.cindy",
-          "sha256": "f52fa28e1a67f5ffffa2a1dcacdb035ed9ed78c13997934d5d10b5210bf88b7c",
+          "download_url": "https://github.com/otaku-say/cindy-plugins/releases/download/v0.2.2/aiod-cli-0.2.2-linux-arm64.cindy",
+          "sha256": "c0c5888baa8a36e3aa29a6968e2c110652cf0f86e64e6ff9ee3fee8bd7e6f00a",
           "size": 724950
         }
       }
@@ -201,7 +201,7 @@
       "id": "my-env",
       "name": "My Env",
       "description": "跨平台环境变量与密钥安全中枢：安全将凭据注入云端沙箱、容器与本地命令，彻底避免对话明文泄露",
-      "version": "0.2.0",
+      "version": "0.2.1",
       "command": "env",
       "author": "otaku-say",
       "source": "plugins/my-env",
@@ -221,54 +221,54 @@
           "os": "macos",
           "arch": "arm64",
           "target": "aarch64-macos",
-          "download_url": "https://github.com/otaku-say/cindy-plugins/releases/download/v0.2.2/my-env-0.2.0-macos-arm64.cindy",
-          "sha256": "16786141466bec5ce292a07a823ebff3ebe91369f9b991de8b6aa8fb05fcb9ec",
-          "size": 34043
+          "download_url": "https://github.com/otaku-say/cindy-plugins/releases/download/v0.2.2/my-env-0.2.1-macos-arm64.cindy",
+          "sha256": "2dfe73dd7a58bdcadbd3f5ff1ffe6f3a52b72679faa90d558d398cbdb27cf33a",
+          "size": 34045
         },
         "macos-amd64": {
           "platform": "macos-amd64",
           "os": "macos",
           "arch": "amd64",
           "target": "x86_64-macos",
-          "download_url": "https://github.com/otaku-say/cindy-plugins/releases/download/v0.2.2/my-env-0.2.0-macos-amd64.cindy",
-          "sha256": "16786141466bec5ce292a07a823ebff3ebe91369f9b991de8b6aa8fb05fcb9ec",
-          "size": 34043
+          "download_url": "https://github.com/otaku-say/cindy-plugins/releases/download/v0.2.2/my-env-0.2.1-macos-amd64.cindy",
+          "sha256": "2dfe73dd7a58bdcadbd3f5ff1ffe6f3a52b72679faa90d558d398cbdb27cf33a",
+          "size": 34045
         },
         "windows-amd64": {
           "platform": "windows-amd64",
           "os": "windows",
           "arch": "amd64",
           "target": "x86_64-windows-gnu",
-          "download_url": "https://github.com/otaku-say/cindy-plugins/releases/download/v0.2.2/my-env-0.2.0-windows-amd64.cindy",
-          "sha256": "16786141466bec5ce292a07a823ebff3ebe91369f9b991de8b6aa8fb05fcb9ec",
-          "size": 34043
+          "download_url": "https://github.com/otaku-say/cindy-plugins/releases/download/v0.2.2/my-env-0.2.1-windows-amd64.cindy",
+          "sha256": "2dfe73dd7a58bdcadbd3f5ff1ffe6f3a52b72679faa90d558d398cbdb27cf33a",
+          "size": 34045
         },
         "windows-arm64": {
           "platform": "windows-arm64",
           "os": "windows",
           "arch": "arm64",
           "target": "aarch64-windows-gnu",
-          "download_url": "https://github.com/otaku-say/cindy-plugins/releases/download/v0.2.2/my-env-0.2.0-windows-arm64.cindy",
-          "sha256": "16786141466bec5ce292a07a823ebff3ebe91369f9b991de8b6aa8fb05fcb9ec",
-          "size": 34043
+          "download_url": "https://github.com/otaku-say/cindy-plugins/releases/download/v0.2.2/my-env-0.2.1-windows-arm64.cindy",
+          "sha256": "2dfe73dd7a58bdcadbd3f5ff1ffe6f3a52b72679faa90d558d398cbdb27cf33a",
+          "size": 34045
         },
         "linux-amd64": {
           "platform": "linux-amd64",
           "os": "linux",
           "arch": "amd64",
           "target": "x86_64-linux-musl",
-          "download_url": "https://github.com/otaku-say/cindy-plugins/releases/download/v0.2.2/my-env-0.2.0-linux-amd64.cindy",
-          "sha256": "16786141466bec5ce292a07a823ebff3ebe91369f9b991de8b6aa8fb05fcb9ec",
-          "size": 34043
+          "download_url": "https://github.com/otaku-say/cindy-plugins/releases/download/v0.2.2/my-env-0.2.1-linux-amd64.cindy",
+          "sha256": "2dfe73dd7a58bdcadbd3f5ff1ffe6f3a52b72679faa90d558d398cbdb27cf33a",
+          "size": 34045
         },
         "linux-arm64": {
           "platform": "linux-arm64",
           "os": "linux",
           "arch": "arm64",
           "target": "aarch64-linux-musl",
-          "download_url": "https://github.com/otaku-say/cindy-plugins/releases/download/v0.2.2/my-env-0.2.0-linux-arm64.cindy",
-          "sha256": "16786141466bec5ce292a07a823ebff3ebe91369f9b991de8b6aa8fb05fcb9ec",
-          "size": 34043
+          "download_url": "https://github.com/otaku-say/cindy-plugins/releases/download/v0.2.2/my-env-0.2.1-linux-arm64.cindy",
+          "sha256": "2dfe73dd7a58bdcadbd3f5ff1ffe6f3a52b72679faa90d558d398cbdb27cf33a",
+          "size": 34045
         }
       }
     },
