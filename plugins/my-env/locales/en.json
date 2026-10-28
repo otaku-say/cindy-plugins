@@ -16,6 +16,9 @@
       "parameters": {
         "/properties/key": {
           "description": "Variable key name, for example GITHUB_TOKEN."
+        },
+        "/properties/allow_plaintext": {
+          "description": "Sensitive values are refused by default; pass true only when a third-party interface hard-requires the raw value."
         }
       }
     },
@@ -81,6 +84,32 @@
         },
         "/properties/timeout_ms": {
           "description": "Execution timeout in ms (1000-300000, default 30000). Host hard cap is 120000 ms per request."
+        },
+        "/properties/shell": {
+          "description": "Run through the platform shell so $VAR expands; default false (auto for .cmd/.bat)."
+        }
+      }
+    },
+    "env_probe": {
+      "description": "Probe stored credentials for validity without returning plaintext: 'github' returns login, scopes and repo push permission; 'http' returns a status code. Response bodies are never echoed back.",
+      "parameters": {
+        "/properties/kind": {
+          "description": "Probe type: github or http."
+        },
+        "/properties/keys": {
+          "description": "Variable keys to probe; omit to probe all sensitive keys."
+        },
+        "/properties/repo": {
+          "description": "GitHub only: additionally verify push permission for owner/repo."
+        },
+        "/properties/url": {
+          "description": "HTTP only: target URL (http/https)."
+        },
+        "/properties/ok_status": {
+          "description": "HTTP only: status codes treated as healthy, default [200]."
+        },
+        "/properties/timeout_ms": {
+          "description": "Per-request timeout in ms (1000-60000, default 15000)."
         }
       }
     }

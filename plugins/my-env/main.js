@@ -16,6 +16,13 @@ const RPC_MAX_TOTAL_MS = 900000;
 const MAX_EXEC_TIMEOUT_MS = 300000;
 
 function rpcBudget(method, params) {
+  if (method === 'env/probe') {
+    const want = Math.min(Math.max(Number(params && params.timeout_ms) || 15000, 1000), 60000);
+    return {
+      timeoutMs: Math.min(want * 2 + 5000, RPC_MAX_TIMEOUT_MS),
+      maxTotalMs: Math.min(want * 3 + 10000, RPC_MAX_TOTAL_MS)
+    };
+  }
   if (method !== 'env/exec') return { timeoutMs: 30000 };
   const want = Math.min(
     Math.max(Number(params && params.timeout_ms) || 30000, 1000),
@@ -79,7 +86,10 @@ async function syncFromKv() {
 
 const TOOL_DISPATCH = {
   env_list: (args) => ({ method: 'env/list', params: { query: args.query } }),
-  env_get: (args) => ({ method: 'env/get', params: { key: args.key } }),
+  env_get: (args) => ({
+    method: 'env/get',
+    params: { key: args.key, allow_plaintext: args.allow_plaintext }
+  }),
   env_set: (args) => ({
     method: 'env/set',
     params: {
@@ -107,6 +117,23 @@ const TOOL_DISPATCH = {
       args: Array.isArray(args.args) ? args.args : [],
       keys: args.keys,
       cwd: args.cwd,
+      timeout_ms: args.timeout_ms,
+      /* v0.2.3：worker 早已实现 shell 语义，但这一层从未透传、schema 也没声明，
+       * 于是手册里「需要 shell 时可显式传 shell: true」的承诺永远无法触达。
+       * 没有它，调用方要用 $VAR 展开就只能把明文值写进命令行参数。 */
+      shell: args.shell
+    }
+  }),
+  env_probe: (args) => ({
+    method: 'env/probe',
+    params: {
+      kind: args.kind,
+      keys: args.keys,
+      repo: args.repo,
+      url: args.url,
+      header: args.header,
+      header_template: args.header_template,
+      ok_status: args.ok_status,
       timeout_ms: args.timeout_ms
     }
   })

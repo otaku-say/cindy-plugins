@@ -135,15 +135,111 @@ function formatJson(vars) {
   return JSON.stringify(vars, null, 2) + '\n';
 }
 
+/* v0.2.3：脱敏改为返回 { text, hits }，让调用方知道「输出里出现过密钥」，
+ * 而不是静默抹掉。命中次数随回执返回，Agent 可据此判断命令是否在回显凭据。 */
 function redactOutput(text, sensitiveList) {
-  if (!text || typeof text !== 'string') return '';
+  if (!text || typeof text !== 'string') return { text: '', hits: 0 };
   let result = text;
+  let hits = 0;
   for (const secret of sensitiveList) {
     if (secret && typeof secret === 'string' && secret.length >= 4) {
-      result = result.split(secret).join('[REDACTED_SECRET]');
+      const parts = result.split(secret);
+      if (parts.length > 1) {
+        hits += parts.length - 1;
+        result = parts.join('[REDACTED_SECRET]');
+      }
     }
   }
-  return result;
+  return { text: result, hits };
+}
+
+/* v0.2.3：凭据自检。只回传白名单字段（状态码 / 账号 / 权限 / scope），
+ * 绝不回传响应体原文，因此调用方无需拿到明文也能判断「这枚密钥还能不能用」。 */
+function httpJson(url, headers, timeoutMs) {
+  return new Promise((resolve) => {
+    let u;
+    try {
+      u = new URL(url);
+    } catch (e) {
+      resolve({ status: 0, headers: {}, json: null, error: '非法 URL: ' + String((e && e.message) || e) });
+      return;
+    }
+    if (u.protocol !== 'http:' && u.protocol !== 'https:') {
+      resolve({ status: 0, headers: {}, json: null, error: '仅支持 http/https' });
+      return;
+    }
+    const mod = require(u.protocol === 'http:' ? 'node:http' : 'node:https');
+    let settled = false;
+    const done = (v) => { if (!settled) { settled = true; resolve(v); } };
+    const req = mod.request(u, { method: 'GET', headers }, (res) => {
+      let body = '';
+      res.on('data', (d) => { if (body.length < 64 * 1024) body += d; });
+      res.on('end', () => {
+        let json = null;
+        try { json = JSON.parse(body); } catch (_) { json = null; }
+        done({ status: res.statusCode || 0, headers: res.headers || {}, json });
+      });
+    });
+    req.on('error', (e) => done({ status: 0, headers: {}, json: null, error: String((e && e.message) || e) }));
+    req.setTimeout(timeoutMs, () => {
+      try { req.destroy(); } catch (_) {}
+      done({ status: 0, headers: {}, json: null, error: 'timeout ' + timeoutMs + 'ms' });
+    });
+    req.end();
+  });
+}
+
+async function probeGithub(key, token, params, timeoutMs) {
+  const headers = {
+    Authorization: 'Bearer ' + token,
+    Accept: 'application/vnd.github+json',
+    'User-Agent': 'cindy-my-env-probe'
+  };
+  const me = await httpJson('https://api.github.com/user', headers, timeoutMs);
+  const out = {
+    key,
+    provider: 'github',
+    ok: me.status === 200,
+    status: me.status,
+    login: (me.json && me.json.login) || null,
+    scopes: String(me.headers['x-oauth-scopes'] || ''),
+    error: me.error || (me.status === 200 ? null : 'HTTP ' + me.status)
+  };
+  const repo = String(params?.repo || '').trim();
+  if (repo && /^[\w.-]+\/[\w.-]+$/.test(repo)) {
+    const r = await httpJson('https://api.github.com/repos/' + repo, headers, timeoutMs);
+    const pm = (r.json && r.json.permissions) || {};
+    out.repo = {
+      name: repo,
+      status: r.status,
+      push: pm.push === true,
+      admin: pm.admin === true,
+      default_branch: (r.json && r.json.default_branch) || null
+    };
+    if (r.status !== 200 || pm.push !== true) out.ok = false;
+  }
+  return out;
+}
+
+async function probeHttp(key, token, params, timeoutMs) {
+  const url = String(params?.url || '').trim();
+  if (!url) return { key, provider: 'http', ok: false, status: 0, error: 'http 模式必须提供 url' };
+  const headerName = String(params?.header || 'Authorization').trim() || 'Authorization';
+  const template = String(params?.header_template || 'Bearer {token}');
+  const headers = { 'User-Agent': 'cindy-my-env-probe' };
+  headers[headerName] = template.split('{token}').join(token);
+  const expect = Array.isArray(params?.ok_status) && params.ok_status.length
+    ? params.ok_status.map((x) => Number(x)).filter((x) => Number.isInteger(x))
+    : [200];
+  const r = await httpJson(url, headers, timeoutMs);
+  return {
+    key,
+    provider: 'http',
+    ok: expect.includes(r.status),
+    status: r.status,
+    expected: expect,
+    error: r.error || (expect.includes(r.status) ? null : 'HTTP ' + r.status)
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -178,6 +274,24 @@ const methods = {
       throw new Error('环境变量不存在: ' + key);
     }
     const entry = store.variables[key];
+
+    /* v0.2.3 强制约束：敏感项默认绝不返回明文。
+     * 理由：env/get 的返回值会【整条落进 Agent 的对话上下文】。即便 Agent 被叮嘱
+     * 「不要打印」，值也已经进入会话历史并被持久化。历史上两次 GitHub PAT 泄漏
+     * 就是这么发生的。因此默认拒绝，只有显式 allow_plaintext === true 才放行。 */
+    if (isSensitive(entry) && params?.allow_plaintext !== true) {
+      return {
+        key,
+        value: null,
+        memo: entry.memo || '',
+        sensitive: true,
+        denied: 'SENSITIVE_PLAINTEXT_BLOCKED',
+        maskedValue: maskOf(entry),
+        hint: '敏感项禁止明文读取（明文会进入会话记录）。请改用 env_exec 进程注入、env_write_file 落盘，或用 env_probe 探测可用性；确需明文时必须显式传 allow_plaintext: true。',
+        updatedAt: entry.updatedAt || 0
+      };
+    }
+
     return {
       key,
       value: entry.value,
@@ -301,18 +415,23 @@ const methods = {
     const injectedVars = {};
     const sensitiveValues = [];
 
-    // 收集待注入环境变量与敏感脱敏清单
+    /* v0.2.3：脱敏清单必须覆盖【全部】敏感项，而不只是本次注入的 keys。
+     * 反例：keys 只传 A 时，若命令读到了 B 并回显，B 会原样躺在 stdout 里。 */
+    for (const entry of Object.values(allVars)) {
+      if (entry && isSensitive(entry) && typeof entry.value === 'string' && entry.value.length >= 4) {
+        sensitiveValues.push(entry.value);
+      }
+    }
+
     if (requestedKeys.length > 0) {
       for (const k of requestedKeys) {
         if (Object.prototype.hasOwnProperty.call(allVars, k)) {
           injectedVars[k] = allVars[k].value;
-          if (isSensitive(allVars[k])) sensitiveValues.push(allVars[k].value);
         }
       }
     } else {
       for (const [k, entry] of Object.entries(allVars)) {
         injectedVars[k] = entry.value;
-        if (isSensitive(entry)) sensitiveValues.push(entry.value);
       }
     }
 
@@ -382,19 +501,65 @@ const methods = {
       proc.on('close', (exitCode) => {
         clearTimeout(timer);
         // 对输出中的敏感密钥执行掩码过滤
-        const sanitizedStdout = redactOutput(stdout, sensitiveValues);
-        const sanitizedStderr = redactOutput(stderr, sensitiveValues);
+        const so = redactOutput(stdout, sensitiveValues);
+        const se = redactOutput(stderr, sensitiveValues);
+        const redactedHits = so.hits + se.hits;
 
         resolve({
           ok: exitCode === 0,
           exitCode: exitCode ?? -1,
-          stdout: sanitizedStdout,
-          stderr: sanitizedStderr,
+          stdout: so.text,
+          stderr: se.text,
           injected_keys: Object.keys(injectedVars),
-          count: Object.keys(injectedVars).length
+          count: Object.keys(injectedVars).length,
+          redacted_hits: redactedHits,
+          redacted_warning: redactedHits > 0
+            ? '输出中出现过 ' + redactedHits + ' 处敏感值，已替换为 [REDACTED_SECRET]'
+            : null
         });
       });
     });
+  },
+
+  'env/probe': async (params) => {
+    const kind = String(params?.kind || 'github').toLowerCase();
+    if (kind !== 'github' && kind !== 'http') {
+      throw new Error("不支持的 kind: " + kind + "（支持 'github' | 'http'）");
+    }
+    const timeoutMs = Math.min(Math.max(Number(params?.timeout_ms) || 15000, 1000), 60000);
+    const store = readStore();
+    const allVars = store.variables;
+
+    const requested = Array.isArray(params?.keys) ? params.keys.map((k) => String(k).trim()).filter(Boolean) : [];
+    const keys = requested.length > 0
+      ? requested
+      : Object.keys(allVars).filter((k) => isSensitive(allVars[k]));
+
+    if (keys.length === 0) {
+      return { ok: false, kind, count: 0, checks: [], note: '没有可探测的变量：请传 keys，或先 env_set 写入敏感项' };
+    }
+
+    const checks = [];
+    for (const key of keys) {
+      const entry = allVars[key];
+      if (!entry) {
+        checks.push({ key, ok: false, status: 0, error: '环境变量不存在' });
+        continue;
+      }
+      const token = String(entry.value || '');
+      if (!token) {
+        checks.push({ key, ok: false, status: 0, error: '值为空' });
+        continue;
+      }
+      try {
+        checks.push(kind === 'github'
+          ? await probeGithub(key, token, params, timeoutMs)
+          : await probeHttp(key, token, params, timeoutMs));
+      } catch (e) {
+        checks.push({ key, ok: false, status: 0, error: String((e && e.message) || e).slice(0, 160) });
+      }
+    }
+    return { ok: checks.every((c) => c.ok), kind, count: checks.length, checks };
   },
 
   'env/sync': (params) => {

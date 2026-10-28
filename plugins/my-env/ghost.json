@@ -4,7 +4,7 @@
   "name": "My Env",
   "description": "Cross-platform environment variables and secret manager: safely inject credentials into cloud sandboxes, containers and local commands without chat leakage.",
   "whenToUse": "Look up, manage or inject environment variables and credentials into sandboxes, containers or local commands without exposing plaintext in chat.",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "minCindyVersion": "3.0.0",
   "entry": "main.js",
   "command": "env",
@@ -53,6 +53,10 @@
           "key": {
             "type": "string",
             "description": "Variable key name, for example GITHUB_TOKEN."
+          },
+          "allow_plaintext": {
+            "type": "boolean",
+            "description": "Sensitive variables are refused by default, because the plaintext would land in the chat transcript. Set true only when a third-party interface hard-requires the raw value."
           }
         },
         "required": [
@@ -176,11 +180,66 @@
           "timeout_ms": {
             "type": "integer",
             "description": "Execution timeout in ms (1000-300000, default 30000). The host caps a single node request at 120000 ms, so a command that produces no output for ~115 s is interrupted; use a background job for longer silent work."
+          },
+          "shell": {
+            "type": "boolean",
+            "description": "Run the command through the platform shell so $VAR / %VAR% expansion works. Default false (auto-enabled for .cmd/.bat on Windows). Needed when a value must be expanded inside the process instead of being written literally into argv."
           }
         },
         "required": [
           "command"
         ]
+      }
+    },
+    {
+      "name": "env_probe",
+      "description": "Probe stored credentials for validity without ever returning their plaintext. 'github' checks api.github.com/user (plus repo push permission when repo is given); 'http' sends one request to url. Response bodies are never echoed back.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "github",
+              "http"
+            ],
+            "description": "Probe type: 'github' or 'http'."
+          },
+          "keys": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Variable keys to probe. Omit to probe every stored sensitive key."
+          },
+          "repo": {
+            "type": "string",
+            "description": "GitHub only: owner/repo to additionally verify push permission."
+          },
+          "url": {
+            "type": "string",
+            "description": "HTTP only: target URL (http/https)."
+          },
+          "header": {
+            "type": "string",
+            "description": "HTTP only: header name carrying the token, default Authorization."
+          },
+          "header_template": {
+            "type": "string",
+            "description": "HTTP only: header value template containing {token}, default 'Bearer {token}'."
+          },
+          "ok_status": {
+            "type": "array",
+            "items": {
+              "type": "integer"
+            },
+            "description": "HTTP only: status codes treated as healthy, default [200]."
+          },
+          "timeout_ms": {
+            "type": "integer",
+            "description": "Per-request timeout in ms (1000-60000, default 15000)."
+          }
+        }
       }
     }
   ]

@@ -16,6 +16,9 @@
       "parameters": {
         "/properties/key": {
           "description": "变量键名，如 GITHUB_TOKEN。"
+        },
+        "/properties/allow_plaintext": {
+          "description": "敏感项默认拒接明文（明文会进入会话记录）；仅第三方接口硬性要求时才传 true。"
         }
       }
     },
@@ -81,6 +84,32 @@
         },
         "/properties/timeout_ms": {
           "description": "执行超时毫秒数（1000–300000）。缺省 30000。宿主单次请求硬上限 120s，因此约 115s 内没有任何输出的命令会被中断；长时间静默任务请放后台执行。"
+        },
+        "/properties/shell": {
+          "description": "是否通过平台 shell 执行命令以支持 $VAR / %VAR% 展开，默认 false（Windows 的 .cmd/.bat 自动启用）。"
+        }
+      }
+    },
+    "env_probe": {
+      "description": "【凭据自检】不取明文地验证已存密钥是否仍然有效：github 模式返回账号、scope 与仓库 push 权限，http 模式返回状态码。绝不回传响应体原文。",
+      "parameters": {
+        "/properties/kind": {
+          "description": "探测类型：github 或 http。"
+        },
+        "/properties/keys": {
+          "description": "要探测的变量键名；省略则探测全部敏感项。"
+        },
+        "/properties/repo": {
+          "description": "github 模式：额外校验 owner/repo 的 push 权限。"
+        },
+        "/properties/url": {
+          "description": "http 模式：目标地址（http/https）。"
+        },
+        "/properties/ok_status": {
+          "description": "http 模式：视为健康的状态码，默认 [200]。"
+        },
+        "/properties/timeout_ms": {
+          "description": "单次请求超时毫秒数（1000-60000，默认 15000）。"
         }
       }
     }
