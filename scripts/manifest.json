@@ -112,6 +112,21 @@
         "sandbox",
         "token"
       ]
+    },
+    "subagent-router": {
+      "id": "subagent-router",
+      "name": "Subagent Model Router",
+      "description": "子代理模型链与分组：按分组挑选模型、拖动排序，失败自动换下一个",
+      "version": "0.1.1",
+      "command": "router",
+      "author": "otaku-say",
+      "tags": [
+        "subagent",
+        "model-routing",
+        "fallback",
+        "pi-extension",
+        "groups"
+      ]
     }
   }
 }
