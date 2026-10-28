@@ -4,7 +4,7 @@
   "name": "My Env",
   "description": "Local store for environment variables and small secrets, with search and paging. Values live in plaintext in this plugin's own /kv store, not in the host credential vault.",
   "whenToUse": "Look up, add, update or remove an environment variable before injecting it into a cloud sandbox or a local command.",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "minCindyVersion": "3.0.0",
   "entry": "main.js",
   "command": "env",

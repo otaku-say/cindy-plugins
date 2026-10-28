@@ -102,7 +102,7 @@
       "id": "my-env",
       "name": "My Env",
       "description": "全局环境变量与凭据中枢：图形化管理密钥、支持搜索与分页，为沙箱与本地任务提供安全凭据注入",
-      "version": "0.1.1",
+      "version": "0.1.2",
       "command": "env",
       "author": "otaku-say",
       "tags": [

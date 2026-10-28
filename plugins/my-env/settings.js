@@ -33,6 +33,65 @@
 
   function isSensitive(entry) { return entry.sensitive !== false; }
 
+  // 插件设置页运行在宿主的 cindy-ghost:// 沙箱 iframe 里：document 经常没有焦点、
+  // 父框架也未授予 clipboard-write 权限策略，navigator.clipboard.writeText 会直接
+  // 抛 NotAllowedError/SecurityError。因此必须保留 execCommand 兜底，否则按钮必然失败。
+  function legacyCopy(text) {
+    var ta = document.createElement('textarea');
+    ta.value = text;
+    ta.setAttribute('readonly', 'readonly');
+    ta.style.position = 'fixed';
+    ta.style.top = '0';
+    ta.style.left = '0';
+    ta.style.width = '1px';
+    ta.style.height = '1px';
+    ta.style.padding = '0';
+    ta.style.border = '0';
+    ta.style.opacity = '0';
+    ta.style.pointerEvents = 'none';
+    document.body.appendChild(ta);
+
+    var sel = window.getSelection ? window.getSelection() : null;
+    var prevRange = sel && sel.rangeCount > 0 ? sel.getRangeAt(0) : null;
+    var ok = false;
+    try {
+      ta.focus({ preventScroll: true });
+      ta.select();
+      ta.setSelectionRange(0, text.length);
+      ok = document.execCommand('copy');
+    } catch (e) {
+      ok = false;
+    }
+    document.body.removeChild(ta);
+    if (prevRange && sel) {
+      try { sel.removeAllRanges(); sel.addRange(prevRange); } catch (e) { /* 忽略 */ }
+    }
+    if (!ok) throw new Error('clipboard unavailable');
+    return text;
+  }
+
+  function copyToClipboard(text) {
+    var value = text == null ? '' : String(text);
+    var clip = navigator.clipboard;
+    if (clip && typeof clip.writeText === 'function') {
+      return clip.writeText(value).catch(function () { return legacyCopy(value); });
+    }
+    return new Promise(function (resolve, reject) {
+      try { resolve(legacyCopy(value)); } catch (err) { reject(err); }
+    });
+  }
+
+  function selectTextOf(el) {
+    try {
+      var range = document.createRange();
+      range.selectNodeContents(el);
+      var sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(range);
+    } catch (e) { /* 忽略 */ }
+  }
+
+
   function maskOf(entry) {
     if (!entry.value) return '';
     if (isSensitive(entry)) return '••••••';
@@ -142,12 +201,17 @@
       var copyBtn = document.createElement('button');
       copyBtn.className = 'pill-btn';
       copyBtn.innerHTML = SVG_COPY;
-      copyBtn.title = '复制'
+      copyBtn.title = '复制';
       copyBtn.onclick = function () {
-        navigator.clipboard.writeText(item.value).then(function () {
+        copyToClipboard(item.value).then(function () {
           showToast('已复制 ' + key, false);
         }, function () {
-          showToast('复制失败，请手动选中', true);
+          // 最后兜底：明文露出并自动选中，用户直接 Ctrl+C 即可
+          valSpan.textContent = item.value || '';
+          valSpan.dataset.revealed = 'true';
+          eyeBtn.innerHTML = SVG_EYE_OFF;
+          selectTextOf(valSpan);
+          showToast('已选中内容，请按 Ctrl+C 复制', true);
         });
       };
 
