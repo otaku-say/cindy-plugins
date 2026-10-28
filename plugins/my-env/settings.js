@@ -15,12 +15,18 @@
   var currentPage = 1;
   var PAGE_SIZE = 5;
   var editingKey = null;
+  var RESERVED_KEYS = ['__proto__', 'constructor', 'prototype'];
+  var ioMode = null; // 'export' | 'import'
 
   var $ = function (id) { return document.getElementById(id); };
   var envKey = $('envKey'), envValue = $('envValue'), envMemo = $('envMemo'), envSensitive = $('envSensitive');
   var saveBtn = $('saveBtn'), cancelEditBtn = $('cancelEditBtn'), formTitle = $('formTitle'), toggleValBtn = $('toggleValBtn');
   var searchInput = $('searchInput'), refreshBtn = $('refreshBtn'), listEl = $('envListContainer');
   var pageInfo = $('pageInfo'), prevBtn = $('prevBtn'), nextBtn = $('nextBtn'), toast = $('toast');
+  var exportBtn = $('exportBtn'), importBtn = $('importBtn'), ioCloseBtn = $('ioCloseBtn');
+  var ioPanel = $('ioPanel'), ioHint = $('ioHint'), ioText = $('ioText'), ioStats = $('ioStats');
+  var ioOverwrite = $('ioOverwrite'), ioOverwriteRow = $('ioOverwriteRow'), ioFile = $('ioFile');
+  var ioFileBtn = $('ioFileBtn'), ioDownloadBtn = $('ioDownloadBtn'), ioPrimaryBtn = $('ioPrimaryBtn');
 
   var toastTimer = null;
   function showToast(msg, isError) {
@@ -88,6 +94,15 @@
       var sel = window.getSelection();
       sel.removeAllRanges();
       sel.addRange(range);
+    } catch (e) { /* 忽略 */ }
+  }
+
+  // textarea 里的内容用 select() 才真正高亮，selectNodeContents 对它无效
+  function selectAllInField(field) {
+    try {
+      field.focus();
+      field.select();
+      field.setSelectionRange(0, String(field.value || '').length);
     } catch (e) { /* 忽略 */ }
   }
 
@@ -252,6 +267,183 @@
     nextBtn.disabled = currentPage >= totalPages;
   }
 
+  // —— 导出 / 导入 ——
+  // 只在设置页里由用户手动触发：Agent 侧仍然只有单键读取，不存在批量读值工具。
+  function pad2(n) { return (n < 10 ? '0' : '') + n; }
+
+  function exportFileName() {
+    var d = new Date();
+    return 'my-env-' + d.getFullYear() + pad2(d.getMonth() + 1) + pad2(d.getDate()) +
+      '-' + pad2(d.getHours()) + pad2(d.getMinutes()) + '.json';
+  }
+
+  function buildExportJson() {
+    return JSON.stringify({
+      schema: 'cindy-my-env/1',
+      exportedAt: new Date().toISOString(),
+      count: Object.keys(allVariables).length,
+      variables: allVariables
+    }, null, 2);
+  }
+
+  // 兼容三种形态：本插件导出的整包、{ KEY: { value, memo, sensitive } }、{ KEY: "值" }
+  function parseImportPayload(text) {
+    var raw = (text || '').trim();
+    if (!raw) throw new Error('请先粘贴或选择要导入的 JSON');
+    var data;
+    try {
+      data = JSON.parse(raw);
+    } catch (e) {
+      throw new Error('JSON 解析失败: ' + e.message);
+    }
+    var vars = data && typeof data === 'object' && !Array.isArray(data) &&
+      data.variables && typeof data.variables === 'object' && !Array.isArray(data.variables)
+      ? data.variables
+      : data;
+    if (!vars || typeof vars !== 'object' || Array.isArray(vars)) {
+      throw new Error('JSON 顶层必须是对象，例如 { "KEY": "值" } 或本插件导出的备份格式');
+    }
+
+    var out = {};
+    var invalid = [];
+    Object.keys(vars).forEach(function (key) {
+      if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(key) || RESERVED_KEYS.indexOf(key) >= 0) {
+        invalid.push(key);
+        return;
+      }
+      var entry = vars[key];
+      var value;
+      var memo = '';
+      var sensitive = true;
+      var updatedAt = Date.now();
+      if (typeof entry === 'string') {
+        value = entry;
+      } else if (entry && typeof entry === 'object' && !Array.isArray(entry)) {
+        value = entry.value;
+        if (typeof entry.memo === 'string') memo = entry.memo;
+        sensitive = entry.sensitive !== false;
+        if (typeof entry.updatedAt === 'number' && isFinite(entry.updatedAt)) updatedAt = entry.updatedAt;
+      } else {
+        invalid.push(key);
+        return;
+      }
+      if (typeof value !== 'string' || value === '') {
+        invalid.push(key);
+        return;
+      }
+      out[key] = { value: value, memo: memo, sensitive: sensitive, updatedAt: updatedAt };
+    });
+    return { vars: out, invalid: invalid };
+  }
+
+  function closeIoPanel() {
+    ioMode = null;
+    ioPanel.style.display = 'none';
+    ioCloseBtn.style.display = 'none';
+    ioText.value = '';
+    ioStats.textContent = '';
+  }
+
+  function runExport() {
+    var count = Object.keys(allVariables).length;
+    var json = buildExportJson();
+    ioMode = 'export';
+    ioPanel.style.display = 'block';
+    ioCloseBtn.style.display = 'inline-flex';
+    ioText.readOnly = true;
+    ioText.value = json;
+    ioOverwriteRow.style.display = 'none';
+    ioFileBtn.style.display = 'none';
+    ioDownloadBtn.style.display = count ? 'inline-flex' : 'none';
+    ioPrimaryBtn.textContent = '复制 JSON';
+    ioPrimaryBtn.disabled = count === 0;
+    ioHint.innerHTML = count === 0
+      ? '当前还没有任何变量，添加后再导出。'
+      : '已生成 <strong>' + count + '</strong> 项变量的 JSON，其中包含<strong>明文值</strong>，请自行妥善保管。' +
+        '可直接「下载 .json」，或「复制 JSON」粘贴到自己的密码库 / 备份文件。';
+    ioStats.textContent = count ? (json.length + ' 字符') : '';
+
+    if (!count) return;
+    copyToClipboard(json).then(function () {
+      showToast('已复制 ' + count + ' 项变量的 JSON', false);
+    }, function () {
+      selectAllInField(ioText);
+      showToast('已生成 JSON，请在下方手动复制或下载', true);
+    });
+  }
+
+  function runImport() {
+    ioMode = 'import';
+    ioPanel.style.display = 'block';
+    ioCloseBtn.style.display = 'inline-flex';
+    ioText.readOnly = false;
+    ioText.value = '';
+    ioOverwriteRow.style.display = 'flex';
+    ioOverwrite.checked = false;
+    ioFileBtn.style.display = 'inline-flex';
+    ioDownloadBtn.style.display = 'none';
+    ioPrimaryBtn.textContent = '确认导入';
+    ioPrimaryBtn.disabled = false;
+    ioHint.innerHTML = '粘贴备份 JSON，或点「选择文件…」读取 <code>.json</code>。支持本插件导出的整包格式，' +
+      '也兼容 <code>{"KEY": {"value": "…"}}</code> 与 <code>{"KEY": "值"}</code>。' +
+      '键名不合规或值不是字符串的条目会被忽略。';
+    ioStats.textContent = '';
+    ioText.focus();
+  }
+
+  function doImport() {
+    var parsed;
+    try {
+      parsed = parseImportPayload(ioText.value);
+    } catch (err) {
+      showToast(err.message, true);
+      return;
+    }
+    var incoming = parsed.vars;
+    var invalid = parsed.invalid;
+    var keys = Object.keys(incoming);
+    if (keys.length === 0) {
+      showToast(invalid.length
+        ? '没有可导入的变量：' + invalid.length + ' 项格式不合法'
+        : '请先粘贴或选择要导入的 JSON', true);
+      return;
+    }
+
+    var overwrite = ioOverwrite.checked;
+    var existing = keys.filter(function (k) {
+      return Object.prototype.hasOwnProperty.call(allVariables, k);
+    }).length;
+    if (overwrite && existing > 0 && !confirm('将覆盖 ' + existing + ' 个同名变量，确定导入吗？')) return;
+
+    var added = 0;
+    var updated = 0;
+    var skipped = 0;
+    ioPrimaryBtn.disabled = true;
+    mutate(function (vars) {
+      keys.forEach(function (key) {
+        var exists = Object.prototype.hasOwnProperty.call(vars, key);
+        if (exists && !overwrite) {
+          skipped++;
+          return;
+        }
+        vars[key] = incoming[key];
+        if (exists) updated++;
+        else added++;
+      });
+    }).then(function () {
+      var parts = ['新增 ' + added];
+      if (updated) parts.push('覆盖 ' + updated);
+      if (skipped) parts.push('跳过同名 ' + skipped);
+      if (invalid.length) parts.push('忽略不合法 ' + invalid.length);
+      showToast('导入完成：' + parts.join('，'), false);
+      closeIoPanel();
+    }, function (err) {
+      showToast(err.message, true);
+    }).then(function () {
+      ioPrimaryBtn.disabled = false;
+    });
+  }
+
   function startEdit(key) {
     var item = allVariables[key];
     editingKey = key;
@@ -333,6 +525,58 @@
   });
   refreshBtn.addEventListener('click', function () {
     loadData().then(function () { showToast('已刷新', false); });
+  });
+
+  exportBtn.addEventListener('click', function () {
+    if (ioMode === 'export') { closeIoPanel(); return; }
+    runExport();
+  });
+  importBtn.addEventListener('click', function () {
+    if (ioMode === 'import') { closeIoPanel(); return; }
+    runImport();
+  });
+  ioCloseBtn.addEventListener('click', closeIoPanel);
+  ioPrimaryBtn.addEventListener('click', function () {
+    if (ioMode === 'import') { doImport(); return; }
+    if (!ioText.value) { showToast('没有可复制的 JSON', true); return; }
+    copyToClipboard(ioText.value).then(function () {
+      showToast('已复制 JSON', false);
+    }, function () {
+      selectAllInField(ioText);
+      showToast('复制失败，请按 Ctrl+C 复制已选中的内容', true);
+    });
+  });
+  ioFileBtn.addEventListener('click', function () {
+    ioFile.value = '';
+    ioFile.click();
+  });
+  ioFile.addEventListener('change', function () {
+    var file = ioFile.files && ioFile.files[0];
+    if (!file) return;
+    var reader = new FileReader();
+    reader.onload = function () {
+      ioText.value = String(reader.result || '');
+      ioStats.textContent = '已读入 ' + file.name + '（' + ioText.value.length + ' 字符）';
+    };
+    reader.onerror = function () { showToast('读取文件失败', true); };
+    reader.readAsText(file);
+  });
+  ioDownloadBtn.addEventListener('click', function () {
+    try {
+      var blob = new Blob([ioText.value], { type: 'application/json' });
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement('a');
+      a.href = url;
+      a.download = exportFileName();
+      a.style.display = 'none';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+      showToast('已导出 ' + exportFileName(), false);
+    } catch (err) {
+      showToast('当前环境不允许直接下载，请改用「复制 JSON」', true);
+    }
   });
 
   loadData();

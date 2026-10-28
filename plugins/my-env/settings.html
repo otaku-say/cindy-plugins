@@ -312,6 +312,29 @@
       gap: 6px;
     }
 
+    /* 备份与迁移（导出 / 导入） */
+    .mig-actions { display: inline-flex; align-items: center; gap: 6px; }
+    .io-panel { border-top: 1px solid var(--border); margin-top: 10px; padding-top: 10px; }
+    .io-hint { font-size: 11px; color: var(--fg-muted); line-height: 1.55; margin-bottom: 8px; }
+    .io-hint strong { color: var(--fg); font-weight: 600; }
+    .io-hint code {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 10px;
+      padding: 1px 4px;
+      border-radius: 4px;
+      background: var(--pill-bg);
+      border: 1px solid var(--pill-border);
+    }
+    .io-text {
+      min-height: 104px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 11px;
+      line-height: 1.45;
+    }
+    .io-footer { display: flex; align-items: center; gap: 6px; margin-top: 8px; }
+    .io-stats { flex: 1; min-width: 0; font-size: 11px; color: var(--fg-muted); word-break: break-word; }
+    .io-stats .warn { color: var(--danger); }
+
     /* 状态提示 */
     .toast {
       display: none;
@@ -361,6 +384,35 @@
     </div>
     <div style="display: flex; justify-content: flex-end; gap: 8px;">
       <button id="saveBtn" class="btn btn-primary">保存变量</button>
+    </div>
+  </div>
+
+  <!-- 备份与迁移：整包导出 / 导入（用户手动操作；Agent 侧仍无批量读取工具） -->
+  <div class="card">
+    <div class="card-title">
+      <span>备份与迁移</span>
+      <span class="mig-actions">
+        <button id="exportBtn" class="btn btn-sm" title="导出全部变量为 JSON">导出全部</button>
+        <button id="importBtn" class="btn btn-sm" title="从 JSON 导入变量">导入</button>
+        <button id="ioCloseBtn" class="icon-btn" title="收起" aria-label="收起" style="display: none;">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+        </button>
+      </span>
+    </div>
+    <div id="ioPanel" class="io-panel" style="display: none;">
+      <div id="ioHint" class="io-hint"></div>
+      <textarea id="ioText" class="io-text" rows="7" spellcheck="false" autocomplete="off" placeholder="在此粘贴 JSON…"></textarea>
+      <label class="check-row" id="ioOverwriteRow" for="ioOverwrite" style="display: none;">
+        <input type="checkbox" id="ioOverwrite" />
+        <span>覆盖同名变量（不勾选则只新增，已有键保持原值）</span>
+      </label>
+      <input type="file" id="ioFile" accept=".json,application/json" style="display: none;" />
+      <div class="io-footer">
+        <span id="ioStats" class="io-stats"></span>
+        <button id="ioFileBtn" class="btn btn-sm" style="display: none;">选择文件…</button>
+        <button id="ioDownloadBtn" class="btn btn-sm" style="display: none;">下载 .json</button>
+        <button id="ioPrimaryBtn" class="btn btn-sm btn-primary">复制 JSON</button>
+      </div>
     </div>
   </div>
 

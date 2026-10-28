@@ -120,6 +120,16 @@ test('my-env keeps no bulk plaintext export and guards reserved keys', () => {
   for (const name of ['__proto__', 'constructor', 'prototype']) {
     assert.ok(mainJs.includes(name), `main.js must guard reserved key ${name}`);
   }
+
+  // 导出/导入只允许出现在设置页（用户手动触发），且导入同样要挡保留键
+  const settingsJs = fs.readFileSync(path.join(ROOT, 'plugins', 'my-env', 'settings.js'), 'utf-8');
+  assert.ok(settingsJs.includes('parseImportPayload') && settingsJs.includes('buildExportJson'),
+    'settings page keeps manual export/import handlers');
+  for (const name of ['__proto__', 'constructor', 'prototype']) {
+    assert.ok(settingsJs.includes(name), `settings.js must guard reserved key ${name} on import`);
+  }
+  assert.ok(!ghost.tools.some((t) => /dump|export|bulk/i.test(t.name)),
+    'no bulk-read/export tool may appear on the Agent tool surface');
 });
 
 test('带 upstream 的插件必须在 main 分支内嵌全部平台二进制', () => {
