@@ -109,27 +109,39 @@ def sync_upstream_for_plugin(plugin_id, plugin_meta, platforms):
 
 def zip_directory(src_dir, dest_zip_path):
     dest_zip_path.parent.mkdir(parents=True, exist_ok=True)
+
+    # 先显式收集并排序：os.walk 的遍历顺序取决于具体文件系统，不同环境打出的条目
+    # 顺序不同，会把同样的内容压成不同的字节流 —— 这样市场清单里的 SHA256 与线上
+    # Release 资产永远对不上。排序后本地产物与 CI 产物逐字节一致。
+    entries = []
+    for root, dirs, files in os.walk(src_dir):
+        dirs[:] = sorted(d for d in dirs if not d.startswith(".") and d != "node_modules")
+        for file in sorted(files):
+            if file.startswith(".") or file.endswith(".cindy") or file.endswith(".zip"):
+                continue
+            full_path = Path(root) / file
+            entries.append((full_path.relative_to(src_dir).as_posix(), full_path))
+    entries.sort(key=lambda item: item[0])
+
     with zipfile.ZipFile(dest_zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
-        for root, dirs, files in os.walk(src_dir):
-            dirs[:] = [d for d in dirs if not d.startswith(".") and d != "node_modules"]
-            for file in files:
-                if file.startswith(".") or file.endswith(".cindy") or file.endswith(".zip"):
-                    continue
-                full_path = Path(root) / file
-                rel_path = full_path.relative_to(src_dir)
-                # 固定时间戳 + 固定权限：同样的内容必须打出同样的 SHA256，
-                # 否则每次 CI 都会因包体哈希变化而重写 marketplace.json，产生无意义的脏 diff。
-                info = zipfile.ZipInfo(str(rel_path), date_time=(1980, 1, 1, 0, 0, 0))
-                info.external_attr = (0o755 if os.access(full_path, os.X_OK) else 0o644) << 16
-                info.compress_type = zipfile.ZIP_DEFLATED
-                with open(full_path, "rb") as fh:
-                    zf.writestr(info, fh.read())
+        for rel_str, full_path in entries:
+            # 固定时间戳 + 固定权限：同样的内容必须打出同样的 SHA256，
+            # 否则每次 CI 都会因包体哈希变化而重写 marketplace.json，产生无意义的脏 diff。
+            info = zipfile.ZipInfo(rel_str, date_time=(1980, 1, 1, 0, 0, 0))
+            info.external_attr = (0o755 if os.access(full_path, os.X_OK) else 0o644) << 16
+            info.compress_type = zipfile.ZIP_DEFLATED
+            with open(full_path, "rb") as fh:
+                zf.writestr(info, fh.read())
 
 def build_all():
     manifest = load_manifest()
     platforms = manifest["platforms"]
     plugins = manifest["plugins"]
     owner = manifest["owner"]
+    # CI 把所有插件的包统一发到 v<全部插件版本的最大值> 这个 Release（见
+    # .github/workflows/build-market.yml），所以下载地址必须用同一个 tag，
+    # 否则非最高版本的插件会指向一个根本不存在的 Release。
+    release_tag = "v" + max(pl["version"] for pl in plugins.values())
     repo = manifest["repo"]
 
     print(f"=== 开始构建 Cindy 插件市场: {manifest['name']} ===")
@@ -179,7 +191,7 @@ def build_all():
 
             pkg_sha = get_file_sha256(cindy_path)
             pkg_size = cindy_path.stat().st_size
-            release_url = f"https://github.com/{owner}/{repo}/releases/download/v{version}/{cindy_filename}"
+            release_url = f"https://github.com/{owner}/{repo}/releases/download/{release_tag}/{cindy_filename}"
 
             cindy_packages_meta[(pid, plat_name)] = {
                 "sha256": pkg_sha,

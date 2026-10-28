@@ -72,7 +72,7 @@
           "arch": "arm64",
           "target": "aarch64-macos",
           "download_url": "https://github.com/otaku-say/cindy-plugins/releases/download/v0.2.1/cube-cli-0.2.1-macos-arm64.cindy",
-          "sha256": "2123cd7134d8b3e971d99f0ea48305421d92a8672a424c05a69b48e012b58e9d",
+          "sha256": "e5631e1ff65a3c9c177ebbca1f788fa86e3ccb9971a3ad8079d43088c9f2934b",
           "size": 746995
         },
         "macos-amd64": {
@@ -81,7 +81,7 @@
           "arch": "amd64",
           "target": "x86_64-macos",
           "download_url": "https://github.com/otaku-say/cindy-plugins/releases/download/v0.2.1/cube-cli-0.2.1-macos-amd64.cindy",
-          "sha256": "79b50059da05c1d2fffe7a2869a78c7c9a434e8bdd1e633f725d7b1dae9f4a22",
+          "sha256": "3af943ac3b6f91892de9eb5ef6aad84c776adbf1768913f7bddfc06ba99de39d",
           "size": 825750
         },
         "windows-amd64": {
@@ -90,7 +90,7 @@
           "arch": "amd64",
           "target": "x86_64-windows-gnu",
           "download_url": "https://github.com/otaku-say/cindy-plugins/releases/download/v0.2.1/cube-cli-0.2.1-windows-amd64.cindy",
-          "sha256": "ecb83ea93ea6fdffe4bbf0bb2b6373c8bbcc6cc4ab48f9e8496ebd28eca45a92",
+          "sha256": "27ace67ae9fdf532edfb201702dd6a038d51c93eb2d3d9e78353911e9027c44a",
           "size": 895726
         },
         "windows-arm64": {
@@ -99,7 +99,7 @@
           "arch": "arm64",
           "target": "aarch64-windows-gnu",
           "download_url": "https://github.com/otaku-say/cindy-plugins/releases/download/v0.2.1/cube-cli-0.2.1-windows-arm64.cindy",
-          "sha256": "58d57ea870e98f79b8c82c867a6d2b9f95d0120d3b128a03bf253e842c72f377",
+          "sha256": "5ad04638eed3cd6d7b6aa9be5891c5e64f04e48bc359c0613526917bb07e9ef7",
           "size": 800288
         },
         "linux-amd64": {
@@ -108,7 +108,7 @@
           "arch": "amd64",
           "target": "x86_64-linux-musl",
           "download_url": "https://github.com/otaku-say/cindy-plugins/releases/download/v0.2.1/cube-cli-0.2.1-linux-amd64.cindy",
-          "sha256": "5e33ab4c83650acecbd8707cd9b98bb13b8408e00290526ba40a5adef3b52d29",
+          "sha256": "ce05355231dbad446e8c70bac12172dcea3361bd177624fd42209ed14692cc25",
           "size": 863445
         },
         "linux-arm64": {
@@ -117,7 +117,7 @@
           "arch": "arm64",
           "target": "aarch64-linux-musl",
           "download_url": "https://github.com/otaku-say/cindy-plugins/releases/download/v0.2.1/cube-cli-0.2.1-linux-arm64.cindy",
-          "sha256": "9f2078f97d556139d7397ead74c7f352039b780277637bbc0d1f452afc050978",
+          "sha256": "ab2dfc7d23f01fcbe151db4bf8521f5ab55448548ef1250210ee2cb2f30a1a20",
           "size": 826020
         }
       }
@@ -146,8 +146,8 @@
           "os": "macos",
           "arch": "arm64",
           "target": "aarch64-macos",
-          "download_url": "https://github.com/otaku-say/cindy-plugins/releases/download/v0.2.0/aiod-cli-0.2.0-macos-arm64.cindy",
-          "sha256": "9bcd3d465508d472e0d8faa96c964f516efb03576bffa4718a9dc6222fcd1ae3",
+          "download_url": "https://github.com/otaku-say/cindy-plugins/releases/download/v0.2.1/aiod-cli-0.2.0-macos-arm64.cindy",
+          "sha256": "e11f2814567080efd507107e5ecfbb2e5e20748211e3413f5e5d6bbe09b2b867",
           "size": 638957
         },
         "macos-amd64": {
@@ -155,8 +155,8 @@
           "os": "macos",
           "arch": "amd64",
           "target": "x86_64-macos",
-          "download_url": "https://github.com/otaku-say/cindy-plugins/releases/download/v0.2.0/aiod-cli-0.2.0-macos-amd64.cindy",
-          "sha256": "5e810167c56f032e7f54474f91ef20b3a6f2cc18946f6a9882a51d17b8f3dd95",
+          "download_url": "https://github.com/otaku-say/cindy-plugins/releases/download/v0.2.1/aiod-cli-0.2.0-macos-amd64.cindy",
+          "sha256": "28b73334f96624e03fb9a0d25811ff970f3ab53c95c225ac4110d58344924644",
           "size": 702965
         },
         "windows-amd64": {
@@ -164,8 +164,8 @@
           "os": "windows",
           "arch": "amd64",
           "target": "x86_64-windows-gnu",
-          "download_url": "https://github.com/otaku-say/cindy-plugins/releases/download/v0.2.0/aiod-cli-0.2.0-windows-amd64.cindy",
-          "sha256": "f65c32b12b2368edcab2a6a980b840f08d3a71178ee5c60311e589a09f99b312",
+          "download_url": "https://github.com/otaku-say/cindy-plugins/releases/download/v0.2.1/aiod-cli-0.2.0-windows-amd64.cindy",
+          "sha256": "90cae8faa6725b5c8a2c92a873f545f7a7b4632041d19e1e47eb71343d77585a",
           "size": 762933
         },
         "windows-arm64": {
@@ -173,8 +173,8 @@
           "os": "windows",
           "arch": "arm64",
           "target": "aarch64-windows-gnu",
-          "download_url": "https://github.com/otaku-say/cindy-plugins/releases/download/v0.2.0/aiod-cli-0.2.0-windows-arm64.cindy",
-          "sha256": "ca81f5f606c7235ac36a95b6e610691775bee65e0d1e2e94a3aacdd2fad81751",
+          "download_url": "https://github.com/otaku-say/cindy-plugins/releases/download/v0.2.1/aiod-cli-0.2.0-windows-arm64.cindy",
+          "sha256": "32cb4c5b33ace00377aa6d9ae063e845500721e79af020bcbb90073f4f78167a",
           "size": 683833
         },
         "linux-amd64": {
@@ -182,8 +182,8 @@
           "os": "linux",
           "arch": "amd64",
           "target": "x86_64-linux-musl",
-          "download_url": "https://github.com/otaku-say/cindy-plugins/releases/download/v0.2.0/aiod-cli-0.2.0-linux-amd64.cindy",
-          "sha256": "b5bebea33f8f2a04175f41a7fc617da6006fab73f6c6a571652eaa7d1eba0107",
+          "download_url": "https://github.com/otaku-say/cindy-plugins/releases/download/v0.2.1/aiod-cli-0.2.0-linux-amd64.cindy",
+          "sha256": "f5e3bdf678e9dccf369bf2ced17cb7a433996dc0c79c99d48f27db6d686eb8f5",
           "size": 747288
         },
         "linux-arm64": {
@@ -191,8 +191,8 @@
           "os": "linux",
           "arch": "arm64",
           "target": "aarch64-linux-musl",
-          "download_url": "https://github.com/otaku-say/cindy-plugins/releases/download/v0.2.0/aiod-cli-0.2.0-linux-arm64.cindy",
-          "sha256": "1651f7c0eb230426d2c67df366444f73327d717f50b36c0b2374da9e4cefca4b",
+          "download_url": "https://github.com/otaku-say/cindy-plugins/releases/download/v0.2.1/aiod-cli-0.2.0-linux-arm64.cindy",
+          "sha256": "c4009290cd70789882283fd0e4f42175ba21119f94a07b51591b19ce1b88d27f",
           "size": 723953
         }
       }
@@ -220,8 +220,8 @@
           "os": "macos",
           "arch": "arm64",
           "target": "aarch64-macos",
-          "download_url": "https://github.com/otaku-say/cindy-plugins/releases/download/v0.1.2/my-env-0.1.2-macos-arm64.cindy",
-          "sha256": "41c74d0e8971edb9b12c358a87566e26737db0ef75a4f46107155629d986e5b9",
+          "download_url": "https://github.com/otaku-say/cindy-plugins/releases/download/v0.2.1/my-env-0.1.2-macos-arm64.cindy",
+          "sha256": "5e7cc322901111ff4c9e9fc6b639a6a980b96c0439f4e7efe52322f0b19b09b0",
           "size": 22676
         },
         "macos-amd64": {
@@ -229,8 +229,8 @@
           "os": "macos",
           "arch": "amd64",
           "target": "x86_64-macos",
-          "download_url": "https://github.com/otaku-say/cindy-plugins/releases/download/v0.1.2/my-env-0.1.2-macos-amd64.cindy",
-          "sha256": "41c74d0e8971edb9b12c358a87566e26737db0ef75a4f46107155629d986e5b9",
+          "download_url": "https://github.com/otaku-say/cindy-plugins/releases/download/v0.2.1/my-env-0.1.2-macos-amd64.cindy",
+          "sha256": "5e7cc322901111ff4c9e9fc6b639a6a980b96c0439f4e7efe52322f0b19b09b0",
           "size": 22676
         },
         "windows-amd64": {
@@ -238,8 +238,8 @@
           "os": "windows",
           "arch": "amd64",
           "target": "x86_64-windows-gnu",
-          "download_url": "https://github.com/otaku-say/cindy-plugins/releases/download/v0.1.2/my-env-0.1.2-windows-amd64.cindy",
-          "sha256": "41c74d0e8971edb9b12c358a87566e26737db0ef75a4f46107155629d986e5b9",
+          "download_url": "https://github.com/otaku-say/cindy-plugins/releases/download/v0.2.1/my-env-0.1.2-windows-amd64.cindy",
+          "sha256": "5e7cc322901111ff4c9e9fc6b639a6a980b96c0439f4e7efe52322f0b19b09b0",
           "size": 22676
         },
         "windows-arm64": {
@@ -247,8 +247,8 @@
           "os": "windows",
           "arch": "arm64",
           "target": "aarch64-windows-gnu",
-          "download_url": "https://github.com/otaku-say/cindy-plugins/releases/download/v0.1.2/my-env-0.1.2-windows-arm64.cindy",
-          "sha256": "41c74d0e8971edb9b12c358a87566e26737db0ef75a4f46107155629d986e5b9",
+          "download_url": "https://github.com/otaku-say/cindy-plugins/releases/download/v0.2.1/my-env-0.1.2-windows-arm64.cindy",
+          "sha256": "5e7cc322901111ff4c9e9fc6b639a6a980b96c0439f4e7efe52322f0b19b09b0",
           "size": 22676
         },
         "linux-amd64": {
@@ -256,8 +256,8 @@
           "os": "linux",
           "arch": "amd64",
           "target": "x86_64-linux-musl",
-          "download_url": "https://github.com/otaku-say/cindy-plugins/releases/download/v0.1.2/my-env-0.1.2-linux-amd64.cindy",
-          "sha256": "41c74d0e8971edb9b12c358a87566e26737db0ef75a4f46107155629d986e5b9",
+          "download_url": "https://github.com/otaku-say/cindy-plugins/releases/download/v0.2.1/my-env-0.1.2-linux-amd64.cindy",
+          "sha256": "5e7cc322901111ff4c9e9fc6b639a6a980b96c0439f4e7efe52322f0b19b09b0",
           "size": 22676
         },
         "linux-arm64": {
@@ -265,8 +265,8 @@
           "os": "linux",
           "arch": "arm64",
           "target": "aarch64-linux-musl",
-          "download_url": "https://github.com/otaku-say/cindy-plugins/releases/download/v0.1.2/my-env-0.1.2-linux-arm64.cindy",
-          "sha256": "41c74d0e8971edb9b12c358a87566e26737db0ef75a4f46107155629d986e5b9",
+          "download_url": "https://github.com/otaku-say/cindy-plugins/releases/download/v0.2.1/my-env-0.1.2-linux-arm64.cindy",
+          "sha256": "5e7cc322901111ff4c9e9fc6b639a6a980b96c0439f4e7efe52322f0b19b09b0",
           "size": 22676
         }
       }
