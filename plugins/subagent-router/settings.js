@@ -376,10 +376,16 @@
 
   async function load() {
     const kv = await readKv();
-    if (kv.config && Array.isArray(kv.config.groups)) state.config = normalize(kv.config);
+    const fromKv = kv.config && Array.isArray(kv.config.groups) ? normalize(kv.config) : null;
     await loadModels();
     const reply = await ask({ type: 'status' });
     state.status = reply.ok ? reply.status : { ok: false, message: reply.message };
+    // 首次打开（kv 还没有配置）以磁盘上的 config.json 为准，避免把已有分组显示成空
+    const seeded = fromKv || (reply.status && reply.status.config ? normalize(reply.status.config) : null);
+    if (seeded) {
+      state.config = seeded;
+      if (!fromKv) await writeKv({ config: seeded }).catch(() => {});
+    }
     renderStatus();
     renderGroups();
   }

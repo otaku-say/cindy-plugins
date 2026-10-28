@@ -275,7 +275,7 @@
       "id": "subagent-router",
       "name": "Subagent Model Router",
       "description": "子代理模型链与分组：按分组挑选模型、拖动排序，失败自动换下一个",
-      "version": "0.1.3",
+      "version": "0.1.4",
       "command": "router",
       "author": "otaku-say",
       "source": "plugins/subagent-router",
@@ -294,54 +294,54 @@
           "os": "macos",
           "arch": "arm64",
           "target": "aarch64-macos",
-          "download_url": "https://github.com/otaku-say/cindy-plugins/releases/download/v0.2.1/subagent-router-0.1.3-macos-arm64.cindy",
-          "sha256": "a627a798f2d7900d2b9a7ab62d6644e0c423e6ee584471a3da22504143bc6ee1",
-          "size": 42182
+          "download_url": "https://github.com/otaku-say/cindy-plugins/releases/download/v0.2.1/subagent-router-0.1.4-macos-arm64.cindy",
+          "sha256": "2ee81a202c1843b68c4fc6c580312c60374f07198d87afa085410d4df9ae06cb",
+          "size": 42356
         },
         "macos-amd64": {
           "platform": "macos-amd64",
           "os": "macos",
           "arch": "amd64",
           "target": "x86_64-macos",
-          "download_url": "https://github.com/otaku-say/cindy-plugins/releases/download/v0.2.1/subagent-router-0.1.3-macos-amd64.cindy",
-          "sha256": "a627a798f2d7900d2b9a7ab62d6644e0c423e6ee584471a3da22504143bc6ee1",
-          "size": 42182
+          "download_url": "https://github.com/otaku-say/cindy-plugins/releases/download/v0.2.1/subagent-router-0.1.4-macos-amd64.cindy",
+          "sha256": "2ee81a202c1843b68c4fc6c580312c60374f07198d87afa085410d4df9ae06cb",
+          "size": 42356
         },
         "windows-amd64": {
           "platform": "windows-amd64",
           "os": "windows",
           "arch": "amd64",
           "target": "x86_64-windows-gnu",
-          "download_url": "https://github.com/otaku-say/cindy-plugins/releases/download/v0.2.1/subagent-router-0.1.3-windows-amd64.cindy",
-          "sha256": "a627a798f2d7900d2b9a7ab62d6644e0c423e6ee584471a3da22504143bc6ee1",
-          "size": 42182
+          "download_url": "https://github.com/otaku-say/cindy-plugins/releases/download/v0.2.1/subagent-router-0.1.4-windows-amd64.cindy",
+          "sha256": "2ee81a202c1843b68c4fc6c580312c60374f07198d87afa085410d4df9ae06cb",
+          "size": 42356
         },
         "windows-arm64": {
           "platform": "windows-arm64",
           "os": "windows",
           "arch": "arm64",
           "target": "aarch64-windows-gnu",
-          "download_url": "https://github.com/otaku-say/cindy-plugins/releases/download/v0.2.1/subagent-router-0.1.3-windows-arm64.cindy",
-          "sha256": "a627a798f2d7900d2b9a7ab62d6644e0c423e6ee584471a3da22504143bc6ee1",
-          "size": 42182
+          "download_url": "https://github.com/otaku-say/cindy-plugins/releases/download/v0.2.1/subagent-router-0.1.4-windows-arm64.cindy",
+          "sha256": "2ee81a202c1843b68c4fc6c580312c60374f07198d87afa085410d4df9ae06cb",
+          "size": 42356
         },
         "linux-amd64": {
           "platform": "linux-amd64",
           "os": "linux",
           "arch": "amd64",
           "target": "x86_64-linux-musl",
-          "download_url": "https://github.com/otaku-say/cindy-plugins/releases/download/v0.2.1/subagent-router-0.1.3-linux-amd64.cindy",
-          "sha256": "a627a798f2d7900d2b9a7ab62d6644e0c423e6ee584471a3da22504143bc6ee1",
-          "size": 42182
+          "download_url": "https://github.com/otaku-say/cindy-plugins/releases/download/v0.2.1/subagent-router-0.1.4-linux-amd64.cindy",
+          "sha256": "2ee81a202c1843b68c4fc6c580312c60374f07198d87afa085410d4df9ae06cb",
+          "size": 42356
         },
         "linux-arm64": {
           "platform": "linux-arm64",
           "os": "linux",
           "arch": "arm64",
           "target": "aarch64-linux-musl",
-          "download_url": "https://github.com/otaku-say/cindy-plugins/releases/download/v0.2.1/subagent-router-0.1.3-linux-arm64.cindy",
-          "sha256": "a627a798f2d7900d2b9a7ab62d6644e0c423e6ee584471a3da22504143bc6ee1",
-          "size": 42182
+          "download_url": "https://github.com/otaku-say/cindy-plugins/releases/download/v0.2.1/subagent-router-0.1.4-linux-arm64.cindy",
+          "sha256": "2ee81a202c1843b68c4fc6c580312c60374f07198d87afa085410d4df9ae06cb",
+          "size": 42356
         }
       }
     }
