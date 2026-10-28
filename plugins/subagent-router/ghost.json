@@ -4,7 +4,7 @@
   "name": "Subagent Model Router",
   "description": "Give Cindy's subagents a model chain: pick models per group in a settings page, drag to order them, and the next model takes over when one fails. Ships its own Pi extension and installs or removes it in one click.",
   "whenToUse": "When subagents should run on cheaper models, when a model keeps failing and the next one should take over, or when providers and models need grouping for different task difficulty.",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "minCindyVersion": "0.1.115",
   "entry": "main.js",
   "command": "router",
@@ -78,5 +78,6 @@
         ]
       }
     }
-  ]
+  ],
+  "launch": "resident"
 }
