@@ -270,6 +270,7 @@
   // ------------------------------------------------------------ drag ordering
   function makeDraggable(handle, item, container, onDrop) {
     handle.addEventListener('pointerdown', (ev) => {
+      if (ev.target && ev.target.closest && ev.target.closest('.x')) return; // 删除按钮不走拖拽
       ev.preventDefault();
       handle.setPointerCapture(ev.pointerId);
       item.classList.add('dragging');
