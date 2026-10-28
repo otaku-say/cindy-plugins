@@ -270,6 +270,80 @@
           "size": 26480
         }
       }
+    },
+    {
+      "id": "subagent-router",
+      "name": "Subagent Model Router",
+      "description": "子代理模型链与分组：按分组挑选模型、拖动排序，失败自动换下一个",
+      "version": "0.1.2",
+      "command": "router",
+      "author": "otaku-say",
+      "source": "plugins/subagent-router",
+      "icon": "plugins/subagent-router/assets/icon.png",
+      "whenToUse": "When subagents should run on cheaper models, when a model keeps failing and the next one should take over, or when providers and models need grouping for different task difficulty.",
+      "tags": [
+        "subagent",
+        "model-routing",
+        "fallback",
+        "pi-extension",
+        "groups"
+      ],
+      "platforms": {
+        "macos-arm64": {
+          "platform": "macos-arm64",
+          "os": "macos",
+          "arch": "arm64",
+          "target": "aarch64-macos",
+          "download_url": "https://github.com/otaku-say/cindy-plugins/releases/download/v0.2.1/subagent-router-0.1.2-macos-arm64.cindy",
+          "sha256": "d59453eacc97c7a56ba37a960d9046118d964a664b314e544bc63fed22f55705",
+          "size": 40531
+        },
+        "macos-amd64": {
+          "platform": "macos-amd64",
+          "os": "macos",
+          "arch": "amd64",
+          "target": "x86_64-macos",
+          "download_url": "https://github.com/otaku-say/cindy-plugins/releases/download/v0.2.1/subagent-router-0.1.2-macos-amd64.cindy",
+          "sha256": "d59453eacc97c7a56ba37a960d9046118d964a664b314e544bc63fed22f55705",
+          "size": 40531
+        },
+        "windows-amd64": {
+          "platform": "windows-amd64",
+          "os": "windows",
+          "arch": "amd64",
+          "target": "x86_64-windows-gnu",
+          "download_url": "https://github.com/otaku-say/cindy-plugins/releases/download/v0.2.1/subagent-router-0.1.2-windows-amd64.cindy",
+          "sha256": "d59453eacc97c7a56ba37a960d9046118d964a664b314e544bc63fed22f55705",
+          "size": 40531
+        },
+        "windows-arm64": {
+          "platform": "windows-arm64",
+          "os": "windows",
+          "arch": "arm64",
+          "target": "aarch64-windows-gnu",
+          "download_url": "https://github.com/otaku-say/cindy-plugins/releases/download/v0.2.1/subagent-router-0.1.2-windows-arm64.cindy",
+          "sha256": "d59453eacc97c7a56ba37a960d9046118d964a664b314e544bc63fed22f55705",
+          "size": 40531
+        },
+        "linux-amd64": {
+          "platform": "linux-amd64",
+          "os": "linux",
+          "arch": "amd64",
+          "target": "x86_64-linux-musl",
+          "download_url": "https://github.com/otaku-say/cindy-plugins/releases/download/v0.2.1/subagent-router-0.1.2-linux-amd64.cindy",
+          "sha256": "d59453eacc97c7a56ba37a960d9046118d964a664b314e544bc63fed22f55705",
+          "size": 40531
+        },
+        "linux-arm64": {
+          "platform": "linux-arm64",
+          "os": "linux",
+          "arch": "arm64",
+          "target": "aarch64-linux-musl",
+          "download_url": "https://github.com/otaku-say/cindy-plugins/releases/download/v0.2.1/subagent-router-0.1.2-linux-arm64.cindy",
+          "sha256": "d59453eacc97c7a56ba37a960d9046118d964a664b314e544bc63fed22f55705",
+          "size": 40531
+        }
+      }
     }
   ]
 }
