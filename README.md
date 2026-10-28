@@ -35,6 +35,21 @@ https://github.com/otaku-say/cindy-plugins
 
 ---
 
+## 如何发版（客户端才会出现「更新」按钮）
+
+Cindy 的自定义 git 市场里，卡片是显示 **「更新到 vX.Y.Z」** 还是 **「替换」**，由「市场清单里的版本 ≠ 本地台账里的版本」且「已装包 `ghost.json` 指纹与台账一致」共同决定。因此每次发版**必须**同步四处版本，且**禁止手改已安装目录**：
+
+1. `plugins/<id>/ghost.json` → `version`
+2. `scripts/manifest.json` → `plugins.<id>.version`（必须与上面完全相等）
+3. `.agents/plugins/marketplace.json` → `version`（**客户端真正读这份**，CI 构建后会自动提交）
+4. `README.md` 本表格
+
+完整判定逻辑、标准发版流程、「只看到替换」的 5 步排查，见 **[CONTRIBUTING.md §5.1 版本与「更新」按钮链路](CONTRIBUTING.md)**。
+
+> 一句话记法：**只改仓库、不碰安装目录；清单不提交，就永远只有「替换」。**
+
+---
+
 ## 当前已收录插件
 
 | 插件 ID | 展示名称 | 指令前缀 | 上游仓库 | 架构覆盖 | 一句话说明 |

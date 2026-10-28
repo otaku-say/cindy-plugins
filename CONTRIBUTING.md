@@ -115,6 +115,79 @@ aiod-cli-linux-arm64     aiod-cli-linux-amd64
 
 ---
 
+## 5.1 版本与「更新」按钮链路（发版只准走这一条）
+
+Cindy 的 git 自定义市场里，插件卡片显示 **「更新到 vX.Y.Z」** 还是 **「替换」**，只由这段判定决定（`bootstrap-electron` 的 `customToItem`）：
+
+```js
+installState =
+  已安装 ghost 存在
+  && 台账记录(plugin-market/custom-ledger.v1.json).installed === true
+  && 台账记录.pluginId === `custom:<市场名>/<ghostId>`
+  && 台账记录.sourceKey === JSON.stringify(["git", "https://github.com/otaku-say/cindy-plugins", null, []])
+  && 台账记录.rawManifestSha256 === 当前已装包 ghost.json 的 sha256   // ← 最容易踩
+    ? (台账记录.releaseId === `custom:<市场名>:<ghostId>:<市场版本>`
+        ? "installed"          // 显示「已安装」，没有更新按钮
+        : "update-available")  // 显示「更新到 vX.Y.Z」
+    : "conflict"               // 显示「替换」（换源语义：数据隔离、密钥要重填）
+```
+
+**任何一条不成立，用户就只能看到「替换」。** 发版必须同时满足下面 6 条。
+
+### 必做清单（四件套 + 两不许）
+
+| # | 动作 | 说明 |
+|---|---|---|
+| 1 | `plugins/<id>/ghost.json` 的 `version` +1 | 与 manifest 必须**严格相等**，`node tests/test_plugins.js` 会卡这条 |
+| 2 | `scripts/manifest.json` 的 `plugins.<id>.version` 同值 +1 | 决定 `.cindy` 包名与 Release 标签 |
+| 3 | `.agents/plugins/marketplace.json` 的 `version` 同步 | **客户端真正读的是这份清单**；CI 已在构建后自动提交（`build-market.yml` 的「提交市场清单」步骤），手工改版本时也要连它一起提交 |
+| 4 | `README.md` 表格里的版本/名称 | 人看的，但漏了判断题会扣分 |
+| 5 | Release 标签 = `v<所有插件版本的最大值>` | 全部平台的包都挂在这一个 tag 下；非最高版本插件也必须指向它，否则 404 |
+| 6 | 清单里的 `sha256` / `size` 用 **Release 资产的真实值** | 见下方「不许用本地打包产物算哈希」 |
+
+### 两不许
+
+1. **不许手改已安装目录里的 `ghost.json`**（`CindyGlobal/owners/<owner>/cindy-brain/_ns/_root/<id>/ghost.json`）。
+   它一旦与台账的 `rawManifestSha256` 不一致 → `verifyInstalledMarketManifest` 失败 → `conflict` → 用户只能「替换」，而且**与市场版本号对不对完全无关**，极难排查。
+   要改内容就改仓库里的 `plugins/<id>/ghost.json`，发版后由用户点「更新」落盘。
+2. **不许用本地打包产物算 `sha256`**。checkout 带 `core.autocrlf`，Linux CI 的字节与本地 Windows 打包不同（实测同一插件体积差 20KB+、哈希完全不同），写进清单会让下载后完整性校验失败。正确做法是**从 Release 已上传的资产逐个回算**：
+
+```bash
+node - <<'JS'
+const fs=require('fs'),crypto=require('crypto');
+const p='.agents/plugins/marketplace.json', mkt=JSON.parse(fs.readFileSync(p,'utf8'));
+(async()=>{for(const pl of mkt.plugins)for(const i of Object.values(pl.platforms)){
+  const r=await fetch(i.download_url); const b=Buffer.from(await r.arrayBuffer());
+  i.sha256=crypto.createHash('sha256').update(b).digest('hex'); i.size=b.length;
+} fs.writeFileSync(p,JSON.stringify(mkt,null,2));})();
+JS
+```
+
+### 标准发版流程（照抄即可）
+
+```bash
+# 1. 只改仓库，不碰已安装目录：
+#    plugins/<id>/ghost.json      version: 0.2.1 -> 0.2.2
+#    scripts/manifest.json        plugins.<id>.version: 0.2.1 -> 0.2.2
+# 2. 本地自检
+node tests/test_plugins.js
+# 3. 提交推送。CI 会：拉上游 → 校验 SHA256 → 内嵌 bin → 构建 24 个平台包
+#    → 发布到 v<max(version)> → 自动提交 marketplace.json
+git add -A && git commit -m "chore(release): bump <id> (x.y.z)" && git push
+# 4. CI 绿后核对 Release 资产数（4 插件 × 6 平台 = 24）
+# 5. 客户端：市场源「刷新/重新同步」→ 卡片出现「更新到 vX.Y.Z」
+```
+
+### 只看到「替换」时的排查顺序
+
+1. `plugin-market/sources.v1.json` 的 `lastRevision` 是否等于远端最新 commit（没同步就先 refresh）；
+2. `.agents/plugins/marketplace.json` 里该插件的 `version` 是否真的变了（最常见：清单没提交，客户端看到还是旧版本）；
+3. 对比台账 `custom-ledger.v1.json` 的 `version` / `releaseId` 与已装包 `ghost.json` 的 `version`——**两者相同就永远不会有更新按钮**；
+4. 校验指纹：`sha256sum <已装目录>/ghost.json` 是否等于台账 `rawManifestSha256`（不等 = 有人手改过安装目录，见「两不许」第 1 条）；
+5. 台账里**没有该插件记录**（曾经用本地 forge / 文件安装）→ 第一次只能点「替换」完成来源绑定，之后才会走「更新」。
+
+---
+
 ## 6. 手册（`manual/guide/MANUAL.md`）规范
 
 手册是 Agent 唯一会读到的用法说明，因此**必须与上游真实命令面对齐**：
@@ -163,3 +236,6 @@ aiod-cli-linux-arm64     aiod-cli-linux-amd64
 - [ ] `manual/guide/MANUAL.md` 的命令/参数与上游一致
 - [ ] `node --test tests/test_plugins.js` 通过
 - [ ] `python3 scripts/build-market.py` 可跑通并生成 6 个平台的包
+- [ ] `.agents/plugins/marketplace.json` 的 `version` 已同步并**已提交**（否则客户端只给「替换」）
+- [ ] 清单里的 `sha256`/`size` 来自 Release 真实资产，不是本地打包结果
+- [ ] **没有**手改过已安装目录 `cindy-brain/_ns/_root/<id>/ghost.json`（改过就会退化成「替换」）
