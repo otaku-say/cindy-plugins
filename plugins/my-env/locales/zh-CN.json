@@ -1,7 +1,7 @@
 {
   "name": "My Env",
-  "description": "本地环境变量与小密钥仓库，支持搜索、分页与一键 JSON 导出/导入。值以明文存在本插件自己的 /kv 存储中，不属于主机凭证保险库。",
-  "whenToUse": "在把变量注入云端沙箱或本地命令之前，查询、新增、修改或删除环境变量时。",
+  "description": "跨平台环境变量与密钥安全中枢：安全将凭据注入云端沙箱、容器与本地命令，彻底避免对话明文泄露。",
+  "whenToUse": "在向沙箱、容器或本地命令注入环境变量与凭据之前，查询、安全注入或管理环境变量时使用。",
   "tools": {
     "env_list": {
       "description": "列出已存变量（脱敏值、备注、更新时间）；返回 { total, items }。敏感项在此处恒为全掩码。",
@@ -28,6 +28,26 @@
       "description": "删除单个变量；返回 { key, deleted }。",
       "parameters": {
         "/properties/key": { "description": "要删除的变量键名。" }
+      }
+    },
+    "env_write_file": {
+      "description": "安全将指定环境变量写入目标文件（.env、Shell 脚本或 JSON），对话与工具卡片不回传明文。适用于沙箱、容器或本地工作区注入。",
+      "parameters": {
+        "/properties/target_path": { "description": "目标文件路径（例如 '.env'、'/var/minis/workspace/.env' 或 'env.sh'）。" },
+        "/properties/keys": { "description": "可选键名列表。省略或为空则写入全部已存变量。" },
+        "/properties/format": { "description": "文件格式：'dotenv'（KEY=\"VAL\"）、'shell'（export KEY=\"VAL\"）或 'json'。缺省为 'dotenv'。" },
+        "/properties/overwrite": { "description": "目标文件已存在时是否覆盖。缺省为 true。" },
+        "/properties/file_mode": { "description": "POSIX 系统下的八进制文件权限（如 '0600' 仅所有者读写）。缺省为 '0600'。Windows 自动忽略。" }
+      }
+    },
+    "env_exec": {
+      "description": "执行本地命令并在进程级直接注入所选环境变量，对话与工具参数中不出现密钥明文。输出会自动脱敏脱敏敏感项。",
+      "parameters": {
+        "/properties/command": { "description": "可执行程序或命令名称（如 'npm'、'python'、'git'、'curl'）。" },
+        "/properties/args": { "description": "命令参数字符串数组。" },
+        "/properties/keys": { "description": "需要注入的环境变量键名列表。省略或为空则注入全部已存变量。" },
+        "/properties/cwd": { "description": "命令执行的工作目录。缺省为当前目录。" },
+        "/properties/timeout_ms": { "description": "执行超时时间毫秒数（1000–300000）。缺省为 30000。" }
       }
     }
   }

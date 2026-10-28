@@ -1,7 +1,7 @@
 {
   "name": "My Env",
-  "description": "Local store for environment variables and small secrets, with search, paging and manual JSON export/import. Values live in plaintext in this plugin's own /kv store, not in the host credential vault.",
-  "whenToUse": "Look up, add, update or remove an environment variable before injecting it into a cloud sandbox or a local command.",
+  "description": "Cross-platform environment variables and secret manager: safely inject credentials into cloud sandboxes, containers and local commands without chat leakage.",
+  "whenToUse": "Look up, manage or inject environment variables and credentials into sandboxes, containers or local commands without exposing plaintext in chat.",
   "tools": {
     "env_list": {
       "description": "List stored variables with masked values, memo and updatedAt; returns { total, items }. Sensitive entries are always fully masked here.",
@@ -28,6 +28,26 @@
       "description": "Delete one variable; returns { key, deleted }.",
       "parameters": {
         "/properties/key": { "description": "Key name of the variable to delete." }
+      }
+    },
+    "env_write_file": {
+      "description": "Safely write selected environment variables to a file (dotenv, shell script, or JSON) without exposing plaintext values in chat. Safe for injecting into sandboxes, containers, or local workspaces.",
+      "parameters": {
+        "/properties/target_path": { "description": "Target file path to write (e.g. '.env', '/var/minis/workspace/.env', or 'env.sh')." },
+        "/properties/keys": { "description": "Optional list of variable keys to include. Omit or leave empty to write all stored variables." },
+        "/properties/format": { "description": "Output format: 'dotenv' (KEY=\"VAL\"), 'shell' (export KEY=\"VAL\"), or 'json'. Defaults to 'dotenv'." },
+        "/properties/overwrite": { "description": "Whether to overwrite the file if it already exists. Defaults to true." },
+        "/properties/file_mode": { "description": "Octal file permissions on POSIX systems (e.g. '0600' for user read/write only). Defaults to '0600'. Ignored on Windows." }
+      }
+    },
+    "env_exec": {
+      "description": "Execute a command with selected environment variables injected into the process environment, without exposing secrets in chat. Output is automatically sanitized to mask sensitive values.",
+      "parameters": {
+        "/properties/command": { "description": "Executable or command to run (e.g. 'npm', 'python', 'git', 'curl')." },
+        "/properties/args": { "description": "Command line arguments as an array of strings." },
+        "/properties/keys": { "description": "List of variable keys to inject from my-env into the command's environment. Omit or leave empty to inject all stored variables." },
+        "/properties/cwd": { "description": "Working directory for command execution. Defaults to current directory." },
+        "/properties/timeout_ms": { "description": "Execution timeout in milliseconds (1000–300000). Defaults to 30000." }
       }
     }
   }

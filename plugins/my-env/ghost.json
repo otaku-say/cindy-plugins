@@ -2,9 +2,9 @@
   "schemaVersion": 3,
   "id": "my-env",
   "name": "My Env",
-  "description": "Local store for environment variables and small secrets, with search, paging and manual JSON export/import. Values live in plaintext in this plugin's own /kv store, not in the host credential vault.",
-  "whenToUse": "Look up, add, update or remove an environment variable before injecting it into a cloud sandbox or a local command.",
-  "version": "0.1.4",
+  "description": "Cross-platform environment variables and secret manager: safely inject credentials into cloud sandboxes, containers and local commands without chat leakage.",
+  "whenToUse": "Look up, manage or inject environment variables and credentials into sandboxes, containers or local commands without exposing plaintext in chat.",
+  "version": "0.2.0",
   "minCindyVersion": "3.0.0",
   "entry": "main.js",
   "command": "env",
@@ -18,11 +18,18 @@
       {
         "dir": "manual/guide",
         "name": "guide",
-        "description": "How My Env stores, masks and exposes values"
+        "description": "How My Env stores, masks, injects and exports values"
       }
     ]
   },
   "settingsHtml": "settings.html",
+  "node": {
+    "entry": "node/worker.cjs",
+    "protocol": "json-rpc-stdio",
+    "lifecycle": "on-demand",
+    "idleTimeoutSeconds": 120
+  },
+  "launch": "resident",
   "tools": [
     {
       "name": "env_list",
@@ -89,6 +96,70 @@
           }
         },
         "required": ["key"]
+      }
+    },
+    {
+      "name": "env_write_file",
+      "description": "Safely write selected environment variables to a file (dotenv, shell script, or JSON) without exposing plaintext values in chat. Safe for injecting into sandboxes, containers, or local workspaces.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "target_path": {
+            "type": "string",
+            "description": "Target file path to write (e.g. '.env', '/var/minis/workspace/.env', or 'env.sh')."
+          },
+          "keys": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "Optional list of variable keys to include. Omit or leave empty to write all stored variables."
+          },
+          "format": {
+            "type": "string",
+            "enum": ["dotenv", "shell", "json"],
+            "description": "Output format: 'dotenv' (KEY=\"VAL\"), 'shell' (export KEY=\"VAL\"), or 'json'. Defaults to 'dotenv'."
+          },
+          "overwrite": {
+            "type": "boolean",
+            "description": "Whether to overwrite the file if it already exists. Defaults to true."
+          },
+          "file_mode": {
+            "type": "string",
+            "description": "Octal file permissions on POSIX systems (e.g. '0600' for user read/write only). Defaults to '0600'. Ignored on Windows."
+          }
+        },
+        "required": ["target_path"]
+      }
+    },
+    {
+      "name": "env_exec",
+      "description": "Execute a command with selected environment variables injected into the process environment, without exposing secrets in chat. Output is automatically sanitized to mask sensitive values.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "command": {
+            "type": "string",
+            "description": "Executable or command to run (e.g. 'npm', 'python', 'git', 'curl')."
+          },
+          "args": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "Command line arguments as an array of strings."
+          },
+          "keys": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "List of variable keys to inject from my-env into the command's environment. Omit or leave empty to inject all stored variables."
+          },
+          "cwd": {
+            "type": "string",
+            "description": "Working directory for command execution. Defaults to current directory."
+          },
+          "timeout_ms": {
+            "type": "integer",
+            "description": "Execution timeout in milliseconds (1000–300000). Defaults to 30000."
+          }
+        },
+        "required": ["command"]
       }
     }
   ]

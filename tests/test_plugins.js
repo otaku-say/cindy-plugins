@@ -169,3 +169,70 @@ test('文档里不再出现已废弃的架构专属分支地址', () => {
     assert.ok(!text.includes('#plat/'), `${rel} 仍包含 #plat/ 分支地址`);
   }
 });
+
+test('my-env worker provides env_write_file and env_exec with zero plaintext in results and output redaction', async () => {
+  const { spawn } = require('node:child_process');
+  const os = require('node:os');
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'my-env-test-'));
+  const workerFile = path.join(ROOT, 'plugins', 'my-env', 'node', 'worker.cjs');
+
+  const proc = spawn('node', [workerFile], {
+    env: { ...process.env, CINDY_HOME: tmpDir },
+    stdio: ['pipe', 'pipe', 'inherit']
+  });
+
+  const readline = require('node:readline');
+  const rl = readline.createInterface({ input: proc.stdout });
+
+  const pending = new Map();
+  let reqSeq = 1;
+
+  rl.on('line', (line) => {
+    if (!line.trim()) return;
+    const msg = JSON.parse(line);
+    if (pending.has(msg.id)) {
+      const { resolve, reject } = pending.get(msg.id);
+      pending.delete(msg.id);
+      if (msg.error) reject(new Error(msg.error.message));
+      else resolve(msg.result);
+    }
+  });
+
+  function call(method, params) {
+    const id = reqSeq++;
+    return new Promise((resolve, reject) => {
+      pending.set(id, { resolve, reject });
+      proc.stdin.write(JSON.stringify({ jsonrpc: '2.0', id, method, params }) + '\n');
+    });
+  }
+
+  try {
+    await call('env/set', { key: 'SECRET_TOKEN', value: 'wldkvf-02847-prm', sensitive: true });
+    await call('env/set', { key: 'API_ENDPOINT', value: 'https://api.example.com', sensitive: false });
+
+    const targetFile = path.join(tmpDir, 'project', '.env');
+    const writeRes = await call('env/writeFile', { target_path: targetFile, format: 'dotenv' });
+    assert.equal(writeRes.ok, true);
+    assert.equal(writeRes.count, 2);
+    assert.deepEqual(writeRes.written_keys.sort(), ['API_ENDPOINT', 'SECRET_TOKEN']);
+    assert.equal(JSON.stringify(writeRes).includes('wldkvf-02847-prm'), false);
+
+    const onDisk = fs.readFileSync(targetFile, 'utf8');
+    assert.ok(onDisk.includes('SECRET_TOKEN="wldkvf-02847-prm"'));
+    assert.ok(onDisk.includes('API_ENDPOINT="https://api.example.com"'));
+
+    const execRes = await call('env/exec', {
+      command: 'node',
+      args: ['-e', 'console.log("RESULT:" + process.env.SECRET_TOKEN + " " + process.env.API_ENDPOINT)']
+    });
+    assert.equal(execRes.ok, true);
+    assert.equal(execRes.exitCode, 0);
+    assert.ok(execRes.stdout.includes('[REDACTED_SECRET]'));
+    assert.ok(!execRes.stdout.includes('wldkvf-02847-prm'));
+    assert.ok(execRes.stdout.includes('https://api.example.com'));
+  } finally {
+    proc.stdin.end();
+    proc.kill();
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+});

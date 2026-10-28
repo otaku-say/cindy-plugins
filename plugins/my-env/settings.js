@@ -146,6 +146,10 @@
     if (body.length > 60 * 1024) throw new Error('存储超限: ' + body.length + ' 字节，上限 61440 字节。请先删除或缩短部分变量。');
     var res = await fetch('/kv', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: body });
     if (!res.ok) throw new Error('保存失败: HTTP ' + res.status);
+    try {
+      var ch = new BroadcastChannel('my-env');
+      ch.postMessage({ type: 'settings-updated' });
+    } catch (_) {}
     await loadData();
   }
 
