@@ -48,6 +48,19 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: 提交市场清单（自定义 git 市场的版本信号）
+        shell: bash
+        run: |
+          # Cindy 的 git 市场直接读 .agents/plugins/marketplace.json 里的 version；
+          # 这份清单如果只生成不提交，客户端永远看到旧版本，只给「替换」不给「更新」。
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add .agents/plugins/marketplace.json
+          if ! git diff --cached --quiet; then
+            git commit -m "chore(market): 更新市场清单版本与产物指纹"
+            git push origin main
+          fi
+
       - name: 检查生成产物与计算版本
         run: |
           ls -la dist/packages/
