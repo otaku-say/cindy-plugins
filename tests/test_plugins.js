@@ -236,3 +236,224 @@ test('my-env worker provides env_write_file and env_exec with zero plaintext in 
     fs.rmSync(tmpDir, { recursive: true, force: true });
   }
 });
+
+// ---------------- cube-cli 参数构建与元数据铁律 ----------------
+
+const cubeWorker = require(path.join(ROOT, 'plugins', 'cube-cli', 'node', 'worker.cjs'));
+
+const SID = 'sid00001abcd';
+
+test('cube_new 强制 purpose/agent/dialogue，dialogue 是独立 metadata 键', () => {
+  const p = cubeWorker.normalizeNewParams({
+    purpose: '修复 my-env 转义 bug 并跑单测',
+    agent: 'Cindy(主)',
+    dialogue: 'bb5c7920-31b6-4ba7-9cf5-96bb2a29d4b1'
+  });
+  const body = JSON.parse(cubeWorker.buildCreateBody({ ...p, templateId: 'tpl-abc123' }));
+  assert.equal(body.templateID, 'tpl-abc123');
+  assert.equal(body.timeout, 1800);
+  assert.equal(body.metadata.dialogue, 'bb5c7920-31b6-4ba7-9cf5-96bb2a29d4b1');
+  assert.equal(body.metadata.agent, 'Cindy(主)');
+  // note 只写中文用途短句，不得混入 agent / 会话 ID
+  assert.equal(body.metadata.note, '修复 my-env 转义 bug 并跑单测');
+  assert.ok(!body.metadata.note.includes('dialogue=') && !body.metadata.note.includes('Cindy('));
+  assert.equal(body.metadata.task, '修复 my-env 转义 bug 并跑单测');
+  assert.equal(body.metadata.cli, 'cube-cli');
+});
+
+test('cube_new 缺字段/非中文用途/非法值都报明确错误', () => {
+  const base = { purpose: '验证构建脚本', agent: 'Cindy(主)', dialogue: 'abc123' };
+  assert.throws(() => cubeWorker.normalizeNewParams({ agent: 'a', dialogue: 'd' }), /purpose 必填/);
+  assert.throws(() => cubeWorker.normalizeNewParams({ purpose: 'run tests', agent: 'a', dialogue: 'd' }), /必须使用中文/);
+  assert.throws(() => cubeWorker.normalizeNewParams({ purpose: '验证', dialogue: 'd' }), /agent 必填/);
+  assert.throws(() => cubeWorker.normalizeNewParams({ purpose: '验证', agent: 'a' }), /dialogue 必填/);
+  assert.throws(() => cubeWorker.normalizeNewParams({ ...base, need: 'gpu' }), /need 只能是/);
+  assert.throws(() => cubeWorker.normalizeNewParams({ ...base, env: { 'bad-key': 'x' } }), /env 变量名非法/);
+  assert.throws(() => cubeWorker.normalizeNewParams({ ...base, purpose: '验'.repeat(61) }), /purpose 过长/);
+  assert.throws(() => cubeWorker.normalizeNewParams({ ...base, purpose: '验证 dialogue=abc' }), /只写用途/);
+  assert.throws(() => cubeWorker.normalizeNewParams({ ...base, purpose: '验证 agent=Cindy' }), /只写用途/);
+  assert.throws(() => cubeWorker.normalizeNewParams({ ...base, purpose: '验证 dialogue＝abc' }), /只写用途/);
+  assert.throws(() => cubeWorker.normalizeNewParams({ ...base, purpose: '验证 dialogue\u200b=abc' }), /只写用途/);
+  // 类型严格：不做隐式 String()
+  assert.throws(() => cubeWorker.normalizeNewParams({ ...base, purpose: ['验证'] }), /必须是字符串/);
+  assert.throws(() => cubeWorker.normalizeNewParams({ ...base, agent: {} }), /必须是字符串/);
+  assert.throws(() => cubeWorker.normalizeNewParams({ ...base, dialogue: 123 }), /必须是字符串/);
+  assert.throws(() => cubeWorker.normalizeNewParams({ ...base, dialogue: 'has space' }), /dialogue 只能是/);
+  assert.throws(() => cubeWorker.normalizeNewParams({ ...base, need: ['code'] }), /need 必须是字符串/);
+  assert.throws(() => cubeWorker.normalizeNewParams({ ...base, timeoutSeconds: true }), /timeoutSeconds 必须是整数/);
+  assert.throws(() => cubeWorker.normalizeNewParams({ ...base, template: '--header=X:1' }), /template 只能是/);
+  assert.throws(() => cubeWorker.normalizeNewParams({ ...base, volume: 'a:b:c' }), /只能有一个冒号/);
+  assert.throws(() => cubeWorker.normalizeNewParams({ ...base, volume: 'a:relative' }), /绝对路径/);
+  assert.throws(() => cubeWorker.normalizeNewParams({ ...base, volume: 'a:/mnt/../etc' }), /不能包含 \.\./);
+  assert.throws(() => cubeWorker.normalizeNewParams(null), /params 必须是对象/);
+});
+
+test('cube_new 选项映射与上限（need/timeout/noInternet/volume/env）', () => {
+  const p = cubeWorker.normalizeNewParams({
+    purpose: '浏览器截图验证',
+    agent: 'worker-2(子)',
+    dialogue: 'd-1',
+    need: 'browser',
+    timeoutSeconds: 600,
+    template: 'aio-browser',
+    noInternet: true,
+    volume: 'data:/mnt/data',
+    env: { TOKENLESS: '1' }
+  });
+  const body = JSON.parse(cubeWorker.buildCreateBody({ ...p, templateId: 'tpl-x' }));
+  assert.equal(body.timeout, 600);
+  assert.equal(body.allow_internet_access, false);
+  assert.deepEqual(body.volumeMounts, [{ name: 'data', path: '/mnt/data' }]);
+  assert.deepEqual(body.envVars, { TOKENLESS: '1' });
+  const clamped = cubeWorker.normalizeNewParams({ purpose: '验证', agent: 'a', dialogue: 'd', timeoutSeconds: 999999999 });
+  assert.equal(clamped.timeout, 86400, 'timeout 必须夹到上限');
+  const defVol = JSON.parse(cubeWorker.buildCreateBody({ ...cubeWorker.normalizeNewParams({ purpose: '验证', agent: 'a', dialogue: 'd', volume: 'data' }), templateId: 'tpl-x' }));
+  assert.deepEqual(defVol.volumeMounts, [{ name: 'data', path: '/mnt/data' }]);
+});
+
+test('cube_new 控制面响应解析出 sandboxId / gateway / aiodBase', () => {
+  const stdout = JSON.stringify({ templateID: 'tpl-abc123', sandboxID: 'cd1e093c8f1f403a9b829d3c995103c2', domain: 'cube.app' });
+  const parsed = cubeWorker.parseCreateResponse(stdout, 'https://cubesandbox-proxy.4a8a.com/', '8080');
+  assert.equal(parsed.sandboxId, 'cd1e093c8f1f403a9b829d3c995103c2');
+  assert.equal(parsed.gatewayUrl, '/sandbox/cd1e093c8f1f403a9b829d3c995103c2/8080/');
+  assert.equal(parsed.aiodBase, 'https://cubesandbox-proxy.4a8a.com/sandbox/cd1e093c8f1f403a9b829d3c995103c2/8080/');
+  assert.throws(() => cubeWorker.parseCreateResponse('HTTP 500: boom', 'https://p', '8080'), /合法 JSON/);
+  assert.throws(() => cubeWorker.parseCreateResponse('{"domain":"cube.app"}', 'https://p', '8080'), /sandboxID/);
+  assert.throws(() => cubeWorker.parseCreateResponse('{"sandboxID":"../../evil"}', 'https://p', '8080'), /sandboxID/);
+});
+
+test('cube_exec 参数：-- 分隔、默认 100 秒、cwd 绝对路径、env', () => {
+  const args = cubeWorker.buildExecArgs({ sandboxId: SID, command: 'ls -la' });
+  assert.deepEqual(args, [SID, '--timeout=100', '--', 'ls -la']);
+  const full = cubeWorker.buildExecArgs({ sandboxId: SID, command: 'npm test', cwd: '/root/app', env: { CI: '1' }, timeoutSeconds: 60 });
+  assert.deepEqual(full, [SID, '--timeout=60', '--cwd=/root/app', '--env=CI=1', '--', 'npm test']);
+  const dash = cubeWorker.buildExecArgs({ sandboxId: SID, command: '--env=FOO=bar' });
+  assert.equal(dash.at(-1), '--env=FOO=bar');
+  assert.equal(dash.at(-2), '--');
+  assert.throws(() => cubeWorker.buildExecArgs({ sandboxId: SID }), /command 必填/);
+  assert.throws(() => cubeWorker.buildExecArgs({ command: 'ls' }), /sandboxId 必填/);
+  assert.throws(() => cubeWorker.buildExecArgs({ sandboxId: 'short', command: 'ls' }), /sandboxId 格式/);
+  assert.throws(() => cubeWorker.buildExecArgs({ sandboxId: SID, command: 'ls', cwd: 'relative' }), /绝对路径/);
+  const clamped = cubeWorker.buildExecArgs({ sandboxId: SID, command: 'x', timeoutSeconds: 100000 });
+  assert.ok(clamped.includes('--timeout=100'));
+});
+
+test('cube_code 语言别名与非法语言', () => {
+  assert.ok(cubeWorker.buildCodeArgs({ sandboxId: SID, code: 'print(1)' }).includes('--lang=python'));
+  assert.ok(cubeWorker.buildCodeArgs({ sandboxId: SID, code: '1', language: 'javascript' }).includes('--lang=js'));
+  assert.ok(cubeWorker.buildCodeArgs({ sandboxId: SID, code: 'echo', language: 'sh' }).includes('--lang=bash'));
+  const args = cubeWorker.buildCodeArgs({ sandboxId: SID, code: '-print(1)' });
+  assert.equal(args.at(-1), '-print(1)');
+  assert.equal(args.at(-2), '--');
+  assert.throws(() => cubeWorker.buildCodeArgs({ sandboxId: SID, code: 'x', language: 'ruby' }), /language 只支持/);
+  assert.throws(() => cubeWorker.buildCodeArgs({ sandboxId: SID, code: '   ' }), /code 必填/);
+});
+
+test('cube_write_file / cube_read_file 路径与容量保护', () => {
+  const w = cubeWorker.buildWriteArgs({ sandboxId: SID, path: '/root/a.py', content: 'print(1)\n' });
+  assert.deepEqual(w.args, [SID, '-', '/root/a.py']);
+  assert.equal(w.bytes, 9);
+  assert.throws(() => cubeWorker.buildWriteArgs({ sandboxId: SID, path: '/a' }), /content 必填/);
+  assert.throws(() => cubeWorker.buildWriteArgs({ sandboxId: SID, content: 'x' }), /path 必填/);
+  assert.throws(() => cubeWorker.buildWriteArgs({ sandboxId: SID, path: 'relative.py', content: 'x' }), /绝对路径/);
+  assert.throws(() => cubeWorker.buildWriteArgs({ sandboxId: SID, path: '/a', content: 'x'.repeat(cubeWorker.MAX_WRITE_BYTES + 1) }), /content 过大/);
+  const r = cubeWorker.buildReadArgs({ sandboxId: SID, path: '/root/a.log' });
+  assert.deepEqual(r.args, [SID, '/root/a.log']);
+  assert.equal(r.maxBytes, cubeWorker.MAX_OUTPUT);
+  assert.equal(cubeWorker.buildReadArgs({ sandboxId: SID, path: '/a', maxBytes: 99999999 }).maxBytes, 1024 * 1024);
+  assert.throws(() => cubeWorker.buildReadArgs({ sandboxId: SID, path: '/a', maxBytes: 'x' }), /maxBytes 必须是整数/);
+});
+
+test('cube_ls 支持元数据过滤与状态/数量', () => {
+  assert.deepEqual(cubeWorker.buildLsArgs({}), []);
+  assert.deepEqual(cubeWorker.buildLsArgs({ metadata: 'dialogue=abc-1' }), ['--metadata=dialogue=abc-1']);
+  assert.deepEqual(cubeWorker.buildLsArgs({ metadata: 'dialogue=abc-1,agent=Cindy(主)', state: 'running', limit: 20, v2: true }), [
+    '--metadata=dialogue=abc-1,agent=Cindy(主)',
+    '--state=running',
+    '--limit=20',
+    '--v2'
+  ]);
+  // limit 只有 v2 生效：传 limit 时必须自动带 --v2
+  assert.deepEqual(cubeWorker.buildLsArgs({ limit: 20 }), ['--limit=20', '--v2']);
+  assert.throws(() => cubeWorker.buildLsArgs({ metadata: 'bad meta' }), /metadata 格式/);
+  assert.throws(() => cubeWorker.buildLsArgs({ state: 'Running' }), /state 只能是/);
+  assert.throws(() => cubeWorker.buildLsArgs({ limit: 'x' }), /limit 必须是整数/);
+  assert.throws(() => cubeWorker.buildLsArgs({ limit: 1.5 }), /limit 必须是整数/);
+});
+
+test('创建沙箱只能走 cube_new：new/clone/raw 创建都被拦', () => {
+  assert.throws(() => cubeWorker.assertCreateInvocation('new', []), /请用 cube_new/);
+  assert.throws(() => cubeWorker.assertCreateInvocation('clone', [SID]), /clone/);
+  assert.throws(() => cubeWorker.assertCreateInvocation('raw', ['POST', '/sandboxes']), /不允许/);
+  assert.throws(() => cubeWorker.assertCreateInvocation('raw', ['post', '/v2/sandboxes?x=1']), /不允许/);
+  // 前置 flag / 路径变体不能绕过
+  assert.throws(() => cubeWorker.assertCreateInvocation('raw', ['--json', 'POST', '/sandboxes']), /不允许/);
+  assert.throws(() => cubeWorker.assertCreateInvocation('raw', ['--', 'POST', '/sandboxes']), /不允许/);
+  assert.throws(() => cubeWorker.assertCreateInvocation('raw', ['POST', '//sandboxes']), /不允许/);
+  assert.throws(() => cubeWorker.assertCreateInvocation('raw', ['POST', '/sandboxes/../sandboxes']), /不允许/);
+  assert.throws(() => cubeWorker.assertCreateInvocation('raw', ['POST', '/Sandboxes']), /不允许/);
+  assert.throws(() => cubeWorker.assertCreateInvocation('raw', ['POST', '/sandboxes%2F']), /不允许/);
+  assert.throws(() => cubeWorker.assertCreateInvocation('raw', ['POST', '/sandboxes#frag']), /不允许/);
+  assert.throws(() => cubeWorker.assertCreateInvocation('raw', ['POST', '/v2/sandboxes#x']), /不允许/);
+  assert.throws(() => cubeWorker.assertCreateInvocation('raw', ['POST', '/sandboxes', '--body=@/etc/passwd']), /禁止/);
+  assert.throws(() => cubeWorker.assertCreateInvocation('raw', ['GET', '/sandboxes', '--body=-']), /禁止/);
+  assert.throws(() => cubeWorker.assertCreateInvocation('write', [SID, 'C:/secret.txt', '/root/x']), /宿主本地文件/);
+  assert.throws(() => cubeWorker.assertCreateInvocation('write-files', [SID, '--files=/root/a:./a']), /宿主本地文件/);
+  assert.throws(() => cubeWorker.assertCreateInvocation('write', [SID, '-', '/root/x']), /cube_write_file/);
+  assert.doesNotThrow(() => cubeWorker.assertCreateInvocation('raw', ['POST', `/sandboxes/${SID}/network`]));
+  assert.doesNotThrow(() => cubeWorker.assertCreateInvocation('info', [SID]));
+  assert.throws(() => cubeWorker.assertNoBareEnvArgs(['exec', SID, 'printenv', '--env=CUBESANDBOX_API_KEY']), /不带值/);
+  assert.doesNotThrow(() => cubeWorker.assertNoBareEnvArgs(['exec', SID, 'printenv', '--env=FOO=bar']));
+});
+
+test('help 旗标不会伪装成成功执行', () => {
+  assert.throws(() => cubeWorker.buildExecArgs({ sandboxId: SID, command: '--help' }), /help/);
+  assert.throws(() => cubeWorker.buildExecArgs({ sandboxId: SID, command: '-h' }), /help/);
+  assert.throws(() => cubeWorker.buildCodeArgs({ sandboxId: SID, code: 'help' }), /help/);
+  assert.doesNotThrow(() => cubeWorker.buildExecArgs({ sandboxId: SID, command: 'helpful-cmd --help' }));
+});
+
+test('cube-cli 工具面与密钥注入方法一致', () => {
+  const ghost = JSON.parse(fs.readFileSync(path.join(ROOT, 'plugins', 'cube-cli', 'ghost.json'), 'utf-8'));
+  const names = ghost.tools.map((t) => t.name);
+  for (const required of ['cube_new', 'cube_ls', 'cube_rm', 'cube_exec', 'cube_code', 'cube_write_file', 'cube_read_file', 'cube_run', 'cube_health', 'cube_submit', 'cube_log', 'cube_kill']) {
+    assert.ok(names.includes(required), `缺少工具 ${required}`);
+  }
+  assert.ok(!names.includes('cube_version'), 'cube_version 应已并入 cube_health');
+
+  const newTool = ghost.tools.find((t) => t.name === 'cube_new');
+  assert.deepEqual(newTool.parameters.required, ['purpose', 'agent', 'dialogue']);
+
+  const mainJs = fs.readFileSync(path.join(ROOT, 'plugins', 'cube-cli', 'main.js'), 'utf-8');
+  const methods = [...mainJs.matchAll(/method:\s*'(cube\/[a-z-]+)'/g)].map((m) => m[1]);
+  assert.ok(methods.length > 0, 'main.js 必须声明 cube/* 方法');
+  const bound = new Set(ghost.node.secretBindings[0].methods);
+  for (const method of new Set(methods)) {
+    assert.ok(bound.has(method), `secretBindings.methods 缺少 ${method}（否则新工具拿不到 API Key）`);
+  }
+});
+
+test('cube-cli 文档与工具面同步', () => {
+  const manual = fs.readFileSync(path.join(ROOT, 'plugins', 'cube-cli', 'manual', 'guide', 'MANUAL.md'), 'utf-8');
+  for (const tool of ['cube_new', 'cube_exec', 'cube_code', 'cube_write_file', 'cube_read_file', 'cube_ls', 'cube_rm', 'cube_health', 'cube_run']) {
+    assert.ok(manual.includes(tool), `MANUAL.md 缺少 ${tool}`);
+  }
+  assert.ok(manual.includes('dialogue='), 'MANUAL.md 必须写明 dialogue 元数据');
+});
+
+test('cube-cli 宿主 RPC 预算不超过硬约束（timeoutMs<=120000, maxTotalMs>=timeoutMs）', () => {
+  const mainJs = fs.readFileSync(path.join(ROOT, 'plugins', 'cube-cli', 'main.js'), 'utf-8');
+  const budgets = [...mainJs.matchAll(/budget\((\d+),\s*(\d+)\)/g)].map((m) => [Number(m[1]), Number(m[2])]);
+  assert.ok(budgets.length >= 10, `budget() 调用太少: ${budgets.length}`);
+  for (const [timeoutMs, maxTotalMs] of budgets) {
+    assert.ok(timeoutMs <= 120000, `timeoutMs 越界: ${timeoutMs}`);
+    assert.ok(maxTotalMs >= timeoutMs, `maxTotalMs(${maxTotalMs}) < timeoutMs(${timeoutMs})`);
+    assert.ok(maxTotalMs <= 900000, `maxTotalMs 越界: ${maxTotalMs}`);
+  }
+  assert.ok(!/timeoutMs:\s*\d{6,}/.test(mainJs), 'main.js 不应出现 >= 6 位的裸 timeoutMs 字面量');
+  const ghost = JSON.parse(fs.readFileSync(path.join(ROOT, 'plugins', 'cube-cli', 'ghost.json'), 'utf-8'));
+  const execTool = ghost.tools.find((t) => t.name === 'cube_exec');
+  assert.match(execTool.parameters.properties.timeoutSeconds.description, /100/);
+  const lsTool = ghost.tools.find((t) => t.name === 'cube_ls');
+  assert.ok(lsTool.parameters.properties.metadata, 'cube_ls 必须支持 metadata 过滤');
+});

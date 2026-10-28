@@ -1,40 +1,43 @@
 {
   "name": "Cube CLI",
   "description": "CubeSandbox 控制面遥控器：管理沙箱生命周期、端口与文件。",
-  "whenToUse": "需要创建、列出、检查、暂停、恢复、快照、克隆或删除 CubeSandbox，或排查控制面连接问题时。【规范要求】拉取沙箱(new)时必须中文填写本次沙箱实际用途、当前Agent身份与会话ID。",
+  "whenToUse": "需要创建、列出、检查、暂停、恢复、快照或删除 CubeSandbox；在沙箱内执行命令或代码；上传下载文件；排查控制面连接问题时。",
   "tools": {
-    "cube_version": {
-      "description": "查看 Cube CLI 版本与平台信息；返回 { stdout, stderr, exitCode }。"
-    },
     "cube_health": {
-      "description": "检查 CubeSandbox 控制面健康状态；返回 { stdout, stderr, exitCode }。"
+      "description": "一次调用同时检查控制面健康状态与 CLI 版本；返回 { healthy, exitCode, health:{stdout,stderr,exitCode}, version:{...} }。沙箱调用报错或开工前自检时使用。"
+    },
+    "cube_new": {
+      "description": "创建 CubeSandbox 并写入完整元数据。purpose（一句简短中文用途→metadata.note）、agent（主/子 Agent 身份→metadata.agent）、dialogue（对话 ID→独立 metadata.dialogue，并作为 X-Caller 头）三项必填。模板解析+创建共享 110 秒预算（宿主单次调用上限 120 秒）。返回 { sandboxId, templateId, gatewayUrl, aiodBase, metadata, warnings, stdout, stderr, exitCode }。若超时，沙箱可能已存在：用 cube_ls metadata=dialogue=<ID> 找回后 cube_rm。"
+    },
+    "cube_ls": {
+      "description": "列出沙箱（ID / 模板 / 状态 / 备注）；返回 { stdout, stderr, exitCode }。可用 metadata 过滤（如 dialogue=<ID>）按会话追溯或清理遗留沙箱。"
+    },
+    "cube_rm": {
+      "description": "销毁沙箱并终止其进程；返回 { stdout, stderr, exitCode }。不可恢复。任务结束应立即调用。"
+    },
+    "cube_exec": {
+      "description": "在沙箱内执行一条 shell 命令；返回 { stdout, stderr, exitCode }。命令经 `--` 以单个 argv 传入（不经过宿主 shell），引号、反斜杠、前导横线都不会失真。同步上限 100 秒；更长任务用 cube_submit。"
+    },
+    "cube_code": {
+      "description": "通过解释器在沙箱内运行一段代码（无 shell 转义问题，多行安全）；返回 { stdout, stderr, exitCode }。同步上限 100 秒。"
+    },
+    "cube_write_file": {
+      "description": "把字符串写入沙箱内文件（字节精确、无转义）；返回 { path, bytes, exitCode }。放脚本/配置时优先用它，避免 echo/heredoc 转义陷阱。"
+    },
+    "cube_read_file": {
+      "description": "读取沙箱内文件文本；返回 { path, content, truncated, exitCode }。默认上限 256 KiB（最大 1 MiB），truncated=true 表示内容不完整。"
     },
     "cube_run": {
-      "description": "执行任意 Cube CLI 子命令（new、ls、rm、exec、code、info、ports 等）；返回 { stdout, stderr, exitCode }。\n【沙箱创建规范】创建沙箱(new)时，必须在 args 中使用中文通过 --note 明确注明本次沙箱的「实际用途」、「当前Agent身份」以及「会话ID」（例如: [\"--need=code\", \"--note=【排障】主控Agent测试转义bug_会话c16f32\", \"--agent=main-agent\", \"--timeout=1800\"]），严禁无用途匿名拉取沙箱。",
-      "parameters": {
-        "/properties/cmd": { "description": "子命令名称，如 new、ls、rm、exec、code、info。" },
-        "/properties/args": { "description": "传给子命令的参数。创建沙箱(new)示例: [\"--need=code\", \"--note=【实际用途】Agent身份_会话ID\", \"--agent=Agent身份\", \"--timeout=1800\"]。必须中文注明用途、自身Agent身份与会话ID。" }
-      }
+      "description": "兜底通道：执行其余任意 Cube CLI 子命令（info、ports、logs、pause、resume、connect、timeout、refresh、snap、tpl-*、ls-file、pty-*、raw 等）；返回 { stdout, stderr, exitCode }。禁止用它创建沙箱或上传宿主文件（请用 cube_new / cube_write_file），并拒绝裸 --env=NAME（宿主环境可能含密钥）。"
     },
     "cube_submit": {
-      "description": "异步提交长任务并立即返回；返回 { taskId, cmd, status, message }。\n【沙箱创建规范】异步创建沙箱(new)同样必须在 args 中使用中文通过 --note 说明实际用途、Agent身份与会话ID。",
-      "parameters": {
-        "/properties/cmd": { "description": "要异步执行的子命令。" },
-        "/properties/args": { "description": "传给子命令的参数。创建沙箱时必须带上包含中文实际用途、Agent身份与会话ID的 --note 参数。" }
-      }
+      "description": "异步提交控制面长任务并立即返回 { taskId, cmd, status, message }，用 cube_log 读取输出（cmd=new 完成时还会返回 sandboxId/templateId）。请每 60-90 秒 cube_log 一次，避免 worker 空闲回收（idleTimeout 120 秒）。沙箱内的长命令请用 cube_run exec-async + exec-logs。"
     },
     "cube_log": {
-      "description": "读取 cube_submit 提交任务的日志；返回 { taskId, status, completed, exitCode, logs, nextOffset, totalLines }。",
-      "parameters": {
-        "/properties/taskId": { "description": "cube_submit 返回的任务 ID。" },
-        "/properties/offset": { "description": "从第几行开始读取，缺省从头。" }
-      }
+      "description": "读取 cube_submit 任务日志（可按 offset 增量读）；返回 { taskId, status, completed, exitCode, logs, nextOffset, totalLines }。"
     },
     "cube_kill": {
-      "description": "终止运行中的后台任务；返回 { taskId, killed }。",
-      "parameters": {
-        "/properties/taskId": { "description": "要终止的任务 ID。" }
-      }
+      "description": "终止 cube_submit 启动的后台任务；返回 { taskId, killed }。"
     }
   }
 }

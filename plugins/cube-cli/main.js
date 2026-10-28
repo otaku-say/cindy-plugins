@@ -11,13 +11,104 @@ async function getKvConfig() {
   }
 }
 
+// 宿主 cindy.node.request 硬约束：timeoutMs <= 120000，maxTotalMs <= 900000 且 >= timeoutMs。
+const RPC_MAX_TIMEOUT_MS = 120000;
+const RPC_MAX_TOTAL_MS = 900000;
+
+function budget(timeoutMs, maxTotalMs) {
+  const t = Math.min(Math.max(Number(timeoutMs) || 30000, 1000), RPC_MAX_TIMEOUT_MS);
+  const m = Math.min(Math.max(Number(maxTotalMs) || t, t), RPC_MAX_TOTAL_MS);
+  return { timeoutMs: t, maxTotalMs: m };
+}
+
+function intOr(value, fallback) {
+  const n = Number(value);
+  return Number.isFinite(n) ? Math.trunc(n) : fallback;
+}
+
 const TOOL_DISPATCH = {
-  cube_version: () => ({ method: 'cube/run', params: { cmd: 'version', args: [] }, timeoutMs: 15000 }),
-  cube_health: () => ({ method: 'cube/health', params: {}, timeoutMs: 30000 }),
-  cube_run: (args) => ({ method: 'cube/run', params: { cmd: args.cmd, args: Array.isArray(args.args) ? args.args : [] }, timeoutMs: 60000, maxTotalMs: 900000 }),
-  cube_submit: (args) => ({ method: 'cube/submit', params: { cmd: args.cmd, args: Array.isArray(args.args) ? args.args : [] }, cancelWithCall: false, timeoutMs: 15000 }),
-  cube_log: (args) => ({ method: 'cube/log', params: { taskId: args.taskId, offset: args.offset || 0 }, timeoutMs: 15000 }),
-  cube_kill: (args) => ({ method: 'cube/kill', params: { taskId: args.taskId }, timeoutMs: 15000 })
+  cube_health: () => ({ method: 'cube/health', params: {}, ...budget(60000, 120000) }),
+  cube_new: (args) => ({
+    method: 'cube/new',
+    params: {
+      purpose: args.purpose,
+      agent: args.agent,
+      dialogue: args.dialogue,
+      need: args.need,
+      timeoutSeconds: intOr(args.timeoutSeconds, 1800),
+      template: args.template,
+      noInternet: args.noInternet,
+      volume: args.volume,
+      env: args.env
+    },
+    ...budget(120000, 900000)
+  }),
+  cube_ls: (args) => ({
+    method: 'cube/ls',
+    params: { metadata: args.metadata, state: args.state, limit: args.limit, v2: args.v2 === true },
+    ...budget(60000, 60000)
+  }),
+  cube_rm: (args) => ({ method: 'cube/rm', params: { sandboxId: args.sandboxId }, ...budget(90000, 90000) }),
+  cube_exec: (args) => ({
+    method: 'cube/exec',
+    params: {
+      sandboxId: args.sandboxId,
+      command: args.command,
+      cwd: args.cwd,
+      timeoutSeconds: intOr(args.timeoutSeconds, 100),
+      env: args.env
+    },
+    ...budget(115000, 900000)
+  }),
+  cube_code: (args) => ({
+    method: 'cube/code',
+    params: {
+      sandboxId: args.sandboxId,
+      code: args.code,
+      language: args.language,
+      timeoutSeconds: intOr(args.timeoutSeconds, 100)
+    },
+    ...budget(115000, 900000)
+  }),
+  cube_write_file: (args) => ({
+    method: 'cube/write',
+    params: { sandboxId: args.sandboxId, path: args.path, content: args.content },
+    ...budget(115000, 120000)
+  }),
+  cube_read_file: (args) => ({
+    method: 'cube/read',
+    params: { sandboxId: args.sandboxId, path: args.path, maxBytes: args.maxBytes },
+    ...budget(115000, 120000)
+  }),
+  cube_run: (args) => ({
+    method: 'cube/run',
+    params: { cmd: args.cmd, args: Array.isArray(args.args) ? args.args : [] },
+    ...budget(90000, 900000)
+  }),
+  cube_submit: (args) => ({
+    method: 'cube/submit',
+    params: {
+      cmd: args.cmd,
+      args: Array.isArray(args.args) ? args.args : [],
+      purpose: args.purpose,
+      agent: args.agent,
+      dialogue: args.dialogue,
+      need: args.need,
+      timeoutSeconds: args.timeoutSeconds,
+      template: args.template,
+      noInternet: args.noInternet,
+      volume: args.volume,
+      env: args.env
+    },
+    cancelWithCall: false,
+    ...budget(60000, 120000)
+  }),
+  cube_log: (args) => ({
+    method: 'cube/log',
+    params: { taskId: args.taskId, offset: args.offset || 0 },
+    ...budget(15000, 30000)
+  }),
+  cube_kill: (args) => ({ method: 'cube/kill', params: { taskId: args.taskId }, ...budget(15000, 30000) })
 };
 
 cindy.onHostMessage(async (msg) => {
@@ -40,11 +131,11 @@ cindy.onHostMessage(async (msg) => {
     const req = dispatch(args);
     const resp = await cindy.node.request({
       method: req.method,
-      params: { ...req.params, env },
+      params: { ...req.params, cliEnv: env },
       callId,
       cancelWithCall: req.cancelWithCall !== false,
-      timeoutMs: req.timeoutMs || 15000,
-      ...(req.maxTotalMs ? { maxTotalMs: req.maxTotalMs } : {})
+      timeoutMs: req.timeoutMs,
+      maxTotalMs: req.maxTotalMs
     });
 
     if (!resp.ok) throw new Error(resp.message || '执行失败');

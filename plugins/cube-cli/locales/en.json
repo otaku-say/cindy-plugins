@@ -1,40 +1,51 @@
 {
   "name": "Cube CLI",
   "description": "Remote control for the CubeSandbox control plane: sandbox lifecycle, ports and files.",
-  "whenToUse": "Create, list, inspect, pause, resume, snapshot, clone or delete a CubeSandbox, or debug control-plane connectivity.",
+  "whenToUse": "Create, list, inspect, pause, resume, snapshot or delete a CubeSandbox; run commands or code inside a sandbox; upload and download files; debug control-plane connectivity.",
   "tools": {
-    "cube_version": {
-      "description": "Show Cube CLI version and platform; returns { stdout, stderr, exitCode }."
-    },
     "cube_health": {
-      "description": "Check CubeSandbox control-plane health; returns { stdout, stderr, exitCode }."
+      "description": "Check control-plane health and CLI version in one call; returns { healthy, exitCode, health:{stdout,stderr,exitCode}, version:{...} }."
+    },
+    "cube_new": {
+      "description": "Create a CubeSandbox with complete metadata. purpose (one short Chinese sentence -> metadata.note), agent (main/sub agent identity -> metadata.agent) and dialogue (conversation ID -> separate metadata.dialogue, also sent as the X-Caller header) are required. Template resolution + creation share a 110s budget (host call limit 120s); returns { sandboxId, templateId, gatewayUrl, aiodBase, metadata, warnings, stdout, stderr, exitCode }. If it times out the sandbox may still exist: find it with cube_ls metadata=dialogue=<ID>."
+    },
+    "cube_ls": {
+      "description": "List sandboxes (ID / template / state / note); returns { stdout, stderr, exitCode }. Filter by metadata (e.g. dialogue=<ID>) to trace a conversation or clean up leftovers."
+    },
+    "cube_rm": {
+      "description": "Destroy a sandbox and stop its processes; returns { stdout, stderr, exitCode }. Irreversible."
+    },
+    "cube_exec": {
+      "description": "Run one shell command inside a sandbox as a single argv after `--` (no host shell, leading dashes survive); returns { stdout, stderr, exitCode }. Sync limit 100s; use cube_submit for longer tasks."
+    },
+    "cube_code": {
+      "description": "Run a code snippet inside a sandbox through the interpreter, multi-line safe; returns { stdout, stderr, exitCode }. Sync limit 100s."
+    },
+    "cube_write_file": {
+      "description": "Write a string to a file inside a sandbox byte-exactly (no escaping); returns { path, bytes, exitCode }."
+    },
+    "cube_read_file": {
+      "description": "Read a sandbox file as text; returns { path, content, truncated, exitCode }. Default cap 256 KiB (max 1 MiB)."
     },
     "cube_run": {
-      "description": "Run any Cube CLI subcommand (new, ls, rm, exec, code, info, ports...); returns { stdout, stderr, exitCode }.",
+      "description": "Escape hatch for any other Cube CLI subcommand (info, ports, logs, pause, resume, snap, tpl-*, pty-*, raw...); returns { stdout, stderr, exitCode }. Sandbox creation and host-file upload are blocked here (use cube_new / cube_write_file). Bare --env=NAME is rejected.",
       "parameters": {
-        "/properties/cmd": { "description": "Subcommand name, e.g. new, ls, rm, exec, code, info." },
-        "/properties/args": { "description": "Arguments for the subcommand, e.g. [\"--need=code\"] or [\"sid\", \"uname -a\"]." }
+        "/properties/cmd": {
+          "description": "Subcommand name, e.g. info, ports, logs, pause, resume, snap, tpl-ls, raw."
+        },
+        "/properties/args": {
+          "description": "Argument array, one item per flag, e.g. [\"sid\"] or [\"GET\", \"/health\"]."
+        }
       }
     },
     "cube_submit": {
-      "description": "Submit a long-running task asynchronously and return immediately; returns { taskId, cmd, status, message }.",
-      "parameters": {
-        "/properties/cmd": { "description": "Subcommand to run asynchronously." },
-        "/properties/args": { "description": "Arguments for the subcommand." }
-      }
+      "description": "Start a long-running control-plane task asynchronously and return { taskId, cmd, status, message }; read it with cube_log (which also returns sandboxId/templateId for cmd='new' once complete). Poll every 60-90s so the worker is not idle-reclaimed. For long in-sandbox commands use cube_run exec-async + exec-logs."
     },
     "cube_log": {
-      "description": "Read logs of a task submitted by cube_submit; returns { taskId, status, completed, exitCode, logs, nextOffset, totalLines }.",
-      "parameters": {
-        "/properties/taskId": { "description": "Task ID returned by cube_submit." },
-        "/properties/offset": { "description": "Line index to start reading from; defaults to the beginning." }
-      }
+      "description": "Read logs of a cube_submit task (incremental by offset); returns { taskId, status, completed, exitCode, logs, nextOffset, totalLines }."
     },
     "cube_kill": {
-      "description": "Terminate a running background task; returns { taskId, killed }.",
-      "parameters": {
-        "/properties/taskId": { "description": "Task ID to terminate." }
-      }
+      "description": "Terminate a task started by cube_submit; returns { taskId, killed }."
     }
   }
 }

@@ -3,8 +3,8 @@
   "id": "cube-cli",
   "name": "Cube CLI",
   "description": "Remote control for the CubeSandbox control plane: sandbox lifecycle, ports and files.",
-  "whenToUse": "Create, list, inspect, pause, resume, snapshot, clone or delete a CubeSandbox, or debug control-plane connectivity.",
-  "version": "0.2.2",
+  "whenToUse": "Create, list, inspect, pause, resume, snapshot or delete a CubeSandbox; run commands or code inside a sandbox; upload and download files; debug control-plane connectivity.",
+  "version": "0.2.3",
   "minCindyVersion": "3.0.0",
   "entry": "main.js",
   "command": "cube",
@@ -31,7 +31,16 @@
         "methods": [
           "cube/run",
           "cube/submit",
-          "cube/health"
+          "cube/health",
+          "cube/new",
+          "cube/ls",
+          "cube/rm",
+          "cube/exec",
+          "cube/code",
+          "cube/write",
+          "cube/read",
+          "cube/log",
+          "cube/kill"
         ],
         "hint": "CubeSandbox 控制面 API 访问密钥"
       }
@@ -48,37 +57,253 @@
   },
   "tools": [
     {
-      "name": "cube_version",
-      "description": "Show Cube CLI version and platform; returns { stdout, stderr, exitCode }.",
+      "name": "cube_health",
+      "description": "Check control-plane health and CLI version in one call; returns { healthy, exitCode, health:{stdout,stderr,exitCode}, version:{...} }. Use when a sandbox call fails or before starting work.",
       "parameters": {
         "type": "object",
         "properties": {}
       }
     },
     {
-      "name": "cube_health",
-      "description": "Check CubeSandbox control-plane health; returns { stdout, stderr, exitCode }.",
+      "name": "cube_new",
+      "description": "Create a CubeSandbox with complete metadata. purpose (one short Chinese sentence -> metadata.note), agent (main/sub agent identity -> metadata.agent) and dialogue (conversation ID -> separate metadata.dialogue, also sent as the X-Caller header) are REQUIRED. Template resolution + creation share a 110s budget (host call limit 120s). Returns { sandboxId, templateId, gatewayUrl, aiodBase, metadata, warnings, stdout, stderr, exitCode }. If it times out, the sandbox may still exist: recover it with cube_ls metadata=dialogue=<ID>.",
       "parameters": {
         "type": "object",
-        "properties": {}
+        "properties": {
+          "purpose": {
+            "type": "string",
+            "description": "沙箱用途：一句简短中文（≤60 字，只写用途，不要写 Agent 名或会话 ID）。写入 metadata.note。"
+          },
+          "agent": {
+            "type": "string",
+            "description": "当前平台 Agent 身份（主/子），例如 Cindy(主)、worker-2(子)。"
+          },
+          "dialogue": {
+            "type": "string",
+            "description": "当前对话 ID（会话 ID）。写入独立的 metadata.dialogue，并作为 X-Caller 请求头发送。"
+          },
+          "need": {
+            "type": "string",
+            "enum": [
+              "code",
+              "browser",
+              "desktop"
+            ],
+            "description": "所需能力，默认 code；需要浏览器/桌面时分别用 browser/desktop。"
+          },
+          "timeoutSeconds": {
+            "type": "integer",
+            "description": "空闲回收秒数（不是创建等待时间），默认 1800。",
+            "minimum": 60,
+            "maximum": 86400
+          },
+          "template": {
+            "type": "string",
+            "description": "直接指定模板 ID 或别名（优先于 need）。"
+          },
+          "noInternet": {
+            "type": "boolean",
+            "description": "为 true 时禁止沙箱出网。"
+          },
+          "volume": {
+            "type": "string",
+            "description": "挂载持久卷，格式 卷名 或 卷名:挂载路径。"
+          },
+          "env": {
+            "type": "object",
+            "description": "注入沙箱进程的环境变量（键值对，非敏感值）。"
+          }
+        },
+        "required": [
+          "purpose",
+          "agent",
+          "dialogue"
+        ]
+      }
+    },
+    {
+      "name": "cube_ls",
+      "description": "List sandboxes (ID / template / state / note); returns { stdout, stderr, exitCode }. Optional metadata filter (e.g. dialogue=<ID>) makes sandbox-to-conversation lookup and leftover cleanup possible.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "metadata": {
+            "type": "string",
+            "description": "按元数据过滤，格式 key=value；多个用逗号分隔，例如 dialogue=bb5c7920-31b6-4ba7-9cf5-96bb2a29d4b1。"
+          },
+          "state": {
+            "type": "string",
+            "description": "按状态过滤，例如 running / paused。"
+          },
+          "limit": {
+            "type": "integer",
+            "description": "返回条数上限（走 v2 接口）。",
+            "minimum": 1,
+            "maximum": 1000
+          },
+          "v2": {
+            "type": "boolean",
+            "description": "强制使用 v2 列表接口。"
+          }
+        }
+      }
+    },
+    {
+      "name": "cube_rm",
+      "description": "Destroy a sandbox and stop its processes; returns { stdout, stderr, exitCode }. Irreversible. Call it as soon as the task is done.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "sandboxId": {
+            "type": "string",
+            "description": "要销毁的沙箱 ID（可用 cube_ls 查看）。"
+          }
+        },
+        "required": [
+          "sandboxId"
+        ]
+      }
+    },
+    {
+      "name": "cube_exec",
+      "description": "Run one shell command inside a sandbox; returns { stdout, stderr, exitCode }. The command is passed after `--` as a single argv (no host shell), so quotes, backslashes and leading dashes survive. Sync limit 100s; for longer tasks use cube_submit + cube_log.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "sandboxId": {
+            "type": "string",
+            "description": "目标沙箱 ID。"
+          },
+          "command": {
+            "type": "string",
+            "description": "要执行的 shell 命令，例如 'cd /root/app && npm test'。"
+          },
+          "cwd": {
+            "type": "string",
+            "description": "工作目录，例如 /root/app。"
+          },
+          "timeoutSeconds": {
+            "type": "integer",
+            "description": "沙箱内硬超时秒数，默认且最大 100（宿主单次调用上限 120 秒）；更长任务用 cube_submit。",
+            "minimum": 1,
+            "maximum": 100
+          },
+          "env": {
+            "type": "object",
+            "description": "本次命令的额外环境变量（键值对，非敏感值）。"
+          }
+        },
+        "required": [
+          "sandboxId",
+          "command"
+        ]
+      }
+    },
+    {
+      "name": "cube_code",
+      "description": "Run a code snippet inside a sandbox through the interpreter (no shell escaping, multi-line safe); returns { stdout, stderr, exitCode }. Sync limit 100s; for longer work use cube_submit.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "sandboxId": {
+            "type": "string",
+            "description": "目标沙箱 ID。"
+          },
+          "code": {
+            "type": "string",
+            "description": "要执行的代码原文（可多行）。"
+          },
+          "language": {
+            "type": "string",
+            "enum": [
+              "python",
+              "js",
+              "bash"
+            ],
+            "description": "解释器语言，默认 python。"
+          },
+          "timeoutSeconds": {
+            "type": "integer",
+            "description": "沙箱内硬超时秒数，默认且最大 100（宿主单次调用上限 120 秒）。",
+            "minimum": 1,
+            "maximum": 100
+          }
+        },
+        "required": [
+          "sandboxId",
+          "code"
+        ]
+      }
+    },
+    {
+      "name": "cube_write_file",
+      "description": "Write a string to a file inside a sandbox (byte-exact, no escaping); returns { path, bytes, exitCode }. Use it to place scripts/configs instead of echoing heredocs.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "sandboxId": {
+            "type": "string",
+            "description": "目标沙箱 ID。"
+          },
+          "path": {
+            "type": "string",
+            "description": "沙箱内目标路径，例如 /root/app/main.py。"
+          },
+          "content": {
+            "type": "string",
+            "description": "文件内容全文（上限 8 MiB）。"
+          }
+        },
+        "required": [
+          "sandboxId",
+          "path",
+          "content"
+        ]
+      }
+    },
+    {
+      "name": "cube_read_file",
+      "description": "Read a file from a sandbox as text; returns { path, content, truncated, exitCode }. Default cap 256 KiB (max 1 MiB); truncated=true means content is incomplete.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "sandboxId": {
+            "type": "string",
+            "description": "目标沙箱 ID。"
+          },
+          "path": {
+            "type": "string",
+            "description": "沙箱内文件路径，例如 /root/app/test.log。"
+          },
+          "maxBytes": {
+            "type": "integer",
+            "description": "最多读取字节数，默认 262144，上限 1048576。",
+            "minimum": 1024,
+            "maximum": 1048576
+          }
+        },
+        "required": [
+          "sandboxId",
+          "path"
+        ]
       }
     },
     {
       "name": "cube_run",
-      "description": "Run any Cube CLI subcommand (new, ls, rm, exec, code, info, ports...); returns { stdout, stderr, exitCode }. [Mandatory Rule] When running 'new' to create a sandbox, you must specify in Chinese the actual purpose, agent identity, and session ID via --note (e.g. --note=【测试】主控Agent修复转义bug_会话c16f32) and specify --agent.",
+      "description": "Escape hatch: run any other Cube CLI subcommand (info, ports, logs, pause, resume, connect, timeout, refresh, snap, tpl-*, ls-file, pty-*, raw...); returns { stdout, stderr, exitCode }. Sandbox creation and host-file upload are blocked here (use cube_new / cube_write_file); bare --env=NAME is rejected.",
       "parameters": {
         "type": "object",
         "properties": {
           "cmd": {
             "type": "string",
-            "description": "Subcommand name, e.g. new, ls, rm, exec, code, info."
+            "description": "子命令名称，例如 info、ports、logs、pause、resume、snap、tpl-ls、raw。"
           },
           "args": {
             "type": "array",
             "items": {
               "type": "string"
             },
-            "description": "Arguments for the subcommand. When cmd is 'new', must include Chinese purpose, agent identity, and session ID via --note (e.g. [\"--need=code\", \"--note=【实际用途】Agent身份_会话ID\", \"--agent=AgentName\", \"--timeout=1800\"])."
+            "description": "子命令参数数组（每个 --flag=value 单独一项），例如 [\"<sandboxId>\"] 或 [\"GET\", \"/health\"]。"
           }
         },
         "required": [
@@ -88,20 +313,63 @@
     },
     {
       "name": "cube_submit",
-      "description": "Submit a long-running task asynchronously and return immediately; returns { taskId, cmd, status, message }. Sandbox creation (new) requires Chinese purpose, agent identity, and session ID in --note.",
+      "description": "Start a long-running control-plane task asynchronously and return { taskId, cmd, status, message } immediately; read it with cube_log. For cmd='new', template resolution and creation run in the background; cube_log returns sandboxId/templateId once the task completes. Poll every 60-90s so the worker is not idle-reclaimed. For long commands inside a sandbox, use cube_run exec-async + exec-logs instead.",
       "parameters": {
         "type": "object",
         "properties": {
           "cmd": {
             "type": "string",
-            "description": "Subcommand to run asynchronously."
+            "description": "要异步执行的子命令，例如 new、exec、code。"
           },
           "args": {
             "type": "array",
             "items": {
               "type": "string"
             },
-            "description": "Arguments for the subcommand. Must specify Chinese purpose, agent identity, and session ID in --note if creating a sandbox."
+            "description": "子命令参数数组（cmd 不是 new 时使用）。"
+          },
+          "purpose": {
+            "type": "string",
+            "description": "cmd=new 时必填：一句简短中文用途（≤60 字，只写用途）。写入 metadata.note。"
+          },
+          "agent": {
+            "type": "string",
+            "description": "cmd=new 时必填：当前平台 Agent 身份，例如 Cindy(主)。"
+          },
+          "dialogue": {
+            "type": "string",
+            "description": "cmd=new 时必填：当前对话 ID（写入 metadata.dialogue）。"
+          },
+          "need": {
+            "type": "string",
+            "enum": [
+              "code",
+              "browser",
+              "desktop"
+            ],
+            "description": "cmd=new 时的能力需求，默认 code。"
+          },
+          "timeoutSeconds": {
+            "type": "integer",
+            "description": "cmd=new 时的空闲回收秒数，默认 1800。",
+            "minimum": 60,
+            "maximum": 86400
+          },
+          "template": {
+            "type": "string",
+            "description": "cmd=new 时直接指定模板 ID 或别名。"
+          },
+          "noInternet": {
+            "type": "boolean",
+            "description": "cmd=new 时为 true 则禁止出网。"
+          },
+          "volume": {
+            "type": "string",
+            "description": "cmd=new 时挂载持久卷（卷名 或 卷名:挂载路径）。"
+          },
+          "env": {
+            "type": "object",
+            "description": "cmd=new 时注入的环境变量。"
           }
         },
         "required": [
@@ -111,17 +379,17 @@
     },
     {
       "name": "cube_log",
-      "description": "Read logs of a task submitted by cube_submit; returns { taskId, status, completed, exitCode, logs, nextOffset, totalLines }.",
+      "description": "Read logs of a cube_submit task (incremental by offset); returns { taskId, status, completed, exitCode, logs, nextOffset, totalLines }.",
       "parameters": {
         "type": "object",
         "properties": {
           "taskId": {
             "type": "string",
-            "description": "Task ID returned by cube_submit."
+            "description": "cube_submit 返回的任务 ID。"
           },
           "offset": {
             "type": "integer",
-            "description": "Line index to start reading from; defaults to the beginning."
+            "description": "从第几行开始读取，缺省从头。"
           }
         },
         "required": [
@@ -131,13 +399,13 @@
     },
     {
       "name": "cube_kill",
-      "description": "Terminate a running background task; returns { taskId, killed }.",
+      "description": "Terminate a running background task started by cube_submit; returns { taskId, killed }.",
       "parameters": {
         "type": "object",
         "properties": {
           "taskId": {
             "type": "string",
-            "description": "Task ID to terminate."
+            "description": "要终止的任务 ID。"
           }
         },
         "required": [

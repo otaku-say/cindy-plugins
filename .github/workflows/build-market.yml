@@ -17,6 +17,10 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: 运行插件测试（失败即阻断构建与发布）
+        shell: bash
+        run: node --test tests/test_plugins.js
+
       - name: 设置 Python 环境
         uses: actions/setup-python@v5
         with:
