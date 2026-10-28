@@ -1,0 +1,22 @@
+{
+  "name": "Subagent Model Router",
+  "description": "给 Cindy 的子代理配上模型链：在设置页里按分组挑选模型、拖动排序，某个模型失败时自动换下一个。",
+  "whenToUse": "当子代理应该跑在更便宜的模型上、当某个模型失败需要换下一个、或需要把供应商与模型按任务难度分组时。",
+  "tools": {
+    "router_status": {
+      "description": "查询扩展是否已注入、文件位置以及已保存的模型分组。"
+    },
+    "router_install": {
+      "description": "写入随包扩展并注册到 Cindy 的 Pi 扩展设置（幂等）。"
+    },
+    "router_uninstall": {
+      "description": "移除扩展条目并删除文件，不留残留（幂等）。"
+    },
+    "router_config_get": {
+      "description": "返回已保存的模型分组及其模型顺序。"
+    },
+    "router_config_set": {
+      "description": "整体替换分组配置。"
+    }
+  }
+}

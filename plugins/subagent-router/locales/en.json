@@ -1,0 +1,22 @@
+{
+  "name": "Subagent Model Router",
+  "description": "Give Cindy's subagents a model chain: pick models per group, drag to order them, and the next model takes over when one fails.",
+  "whenToUse": "When subagents should run on cheaper models, when a failing model should hand over to the next one, or when providers and models need grouping by task difficulty.",
+  "tools": {
+    "router_status": {
+      "description": "Report whether the Pi extension is injected, where its files live, and the saved model groups."
+    },
+    "router_install": {
+      "description": "Write the bundled Pi extension and register it in Cindy's Pi extension settings (idempotent)."
+    },
+    "router_uninstall": {
+      "description": "Remove the extension entry and its files, leaving no residue (idempotent)."
+    },
+    "router_config_get": {
+      "description": "Return the saved model groups and their model order."
+    },
+    "router_config_set": {
+      "description": "Replace the whole group configuration."
+    }
+  }
+}

@@ -1,0 +1,82 @@
+{
+  "schemaVersion": 3,
+  "id": "subagent-router",
+  "name": "Subagent Model Router",
+  "description": "Give Cindy's subagents a model chain: pick models per group in a settings page, drag to order them, and the next model takes over when one fails. Ships its own Pi extension and installs or removes it in one click.",
+  "whenToUse": "When subagents should run on cheaper models, when a model keeps failing and the next one should take over, or when providers and models need grouping for different task difficulty.",
+  "version": "0.1.2",
+  "minCindyVersion": "0.1.115",
+  "entry": "main.js",
+  "command": "router",
+  "icon": "assets/icon.png",
+  "locales": {
+    "en": "locales/en.json",
+    "zh-CN": "locales/zh-CN.json"
+  },
+  "manual": {
+    "items": [
+      {
+        "dir": "manual/guide",
+        "name": "guide",
+        "description": "How Subagent Router maps groups to a fallback chain and installs its Pi extension"
+      }
+    ]
+  },
+  "settingsHtml": "settings.html",
+  "node": {
+    "entry": "node/worker.cjs",
+    "protocol": "json-rpc-stdio",
+    "lifecycle": "on-demand",
+    "idleTimeoutSeconds": 120
+  },
+  "tools": [
+    {
+      "name": "router_status",
+      "description": "Report whether the Pi extension is injected, where its files live, the saved model groups, and the default group. Read-only.",
+      "parameters": {
+        "type": "object",
+        "properties": {}
+      }
+    },
+    {
+      "name": "router_install",
+      "description": "Write the bundled Pi extension to the stable extension directory and register it in Cindy's Pi extension settings. Idempotent: repeating it changes nothing. Takes effect in the next new task.",
+      "parameters": {
+        "type": "object",
+        "properties": {}
+      }
+    },
+    {
+      "name": "router_uninstall",
+      "description": "Remove the Pi extension entry and delete its files, leaving no residue. Idempotent: repeating it reports nothing to do.",
+      "parameters": {
+        "type": "object",
+        "properties": {}
+      }
+    },
+    {
+      "name": "router_config_get",
+      "description": "Return the saved model groups, their descriptions and their model order. Read-only.",
+      "parameters": {
+        "type": "object",
+        "properties": {}
+      }
+    },
+    {
+      "name": "router_config_set",
+      "description": "Replace the whole group configuration. Each group has id, name, description and an ordered models list of {id, provider, name}; defaultGroupId picks the chain used by default.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "config": {
+            "type": "object",
+            "description": "Full configuration object: { enabled, defaultGroupId, groups: [{ id, name, description, models: [{ id, provider, name }] }] }"
+          }
+        },
+        "required": [
+          "config"
+        ]
+      }
+    }
+  ]
+}
