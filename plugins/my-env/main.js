@@ -85,7 +85,7 @@ async function syncFromKv() {
 }
 
 const TOOL_DISPATCH = {
-  env_list: (args) => ({ method: 'env/list', params: { query: args.query } }),
+  env_list: (args) => ({ method: 'env/list', params: { query: args.query, keys: args.keys } }),
   env_get: (args) => ({
     method: 'env/get',
     params: { key: args.key, allow_plaintext: args.allow_plaintext }
@@ -121,7 +121,8 @@ const TOOL_DISPATCH = {
       /* v0.2.3：worker 早已实现 shell 语义，但这一层从未透传、schema 也没声明，
        * 于是手册里「需要 shell 时可显式传 shell: true」的承诺永远无法触达。
        * 没有它，调用方要用 $VAR 展开就只能把明文值写进命令行参数。 */
-      shell: args.shell
+      shell: args.shell,
+      command_line: args.command_line
     }
   }),
   env_probe: (args) => ({

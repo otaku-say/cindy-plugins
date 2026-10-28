@@ -4,7 +4,7 @@
   "name": "My Env",
   "description": "Cross-platform environment variables and secret manager: safely inject credentials into cloud sandboxes, containers and local commands without chat leakage.",
   "whenToUse": "Look up, manage or inject environment variables and credentials into sandboxes, containers or local commands without exposing plaintext in chat.",
-  "version": "0.2.3",
+  "version": "0.2.4",
   "minCindyVersion": "3.0.0",
   "entry": "main.js",
   "command": "env",
@@ -40,6 +40,13 @@
           "query": {
             "type": "string",
             "description": "Optional keyword matched against key names or memos."
+          },
+          "keys": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Return only these exact keys (still masked); unknown keys are listed in 'missing'. Complements env_get for batch lookups."
           }
         }
       }
@@ -183,12 +190,13 @@
           },
           "shell": {
             "type": "boolean",
-            "description": "Run the command through the platform shell so $VAR / %VAR% expansion works. Default false (auto-enabled for .cmd/.bat on Windows). Needed when a value must be expanded inside the process instead of being written literally into argv."
+            "description": "Run through the platform shell so $VAR / %VAR% expansion works. Default false (auto-enabled for .cmd/.bat on Windows). Implemented as an explicit '/bin/sh -c' or 'cmd.exe /d /s /c' wrapper, never Node's shell:true."
+          },
+          "command_line": {
+            "type": "string",
+            "description": "Full command line executed through the shell; takes precedence over command+args. Prefer this when you need shell semantics: you own the quoting, so nothing is silently re-escaped."
           }
-        },
-        "required": [
-          "command"
-        ]
+        }
       }
     },
     {

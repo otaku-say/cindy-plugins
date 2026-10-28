@@ -14,9 +14,9 @@ My Env 是一个跨平台的环境变量与密钥安全中枢：在设置页统�
 
 ## Agent 工具清单
 
-1. `env_list`：列出已存键名、脱敏掩码、备注、敏感标记与更新时间；支持关键词搜索。
+1. `env_list`：列出已存键名、脱敏掩码、备注、敏感标记与更新时间；支持 `query` 关键词搜索，也支持 `keys` 精确批量查看（不存在的键会在 `missing` 里列出）。
 2. `env_write_file`：**【推荐注入方式】**将指定密钥集合直接渲染并落盘到目标文件（支持 `.env`、`shell` 环境变量脚本、`json` 配置）。文件权限在 POSIX 系统默认自动设为 `0600`，对话回执仅包含写入的键名列表与字节数，无任何明文。
-3. `env_exec`：**【本地安全执行】**在子进程中执行指定命令（如 `git push`、`npm test`），并在进程级别直接注入所选环境变量。stdout/stderr 会被**全量**脱敏（覆盖全部已存敏感项，不只是本次注入的 keys），回执附带 `redacted_hits` 与 `redacted_warning`，便于判断命令是否在回显凭据。需要 `$VAR` / `%VAR%` 展开时传 `shell: true`。
+3. `env_exec`：**【本地安全执行】**在子进程中执行指定命令（如 `git push`、`npm test`），并在进程级别直接注入所选环境变量。stdout/stderr 会被**全量**脱敏（覆盖全部已存敏感项，不只是本次注入的 keys），回执附带 `redacted_hits` 与 `redacted_warning`，便于判断命令是否在回显凭据。需要 `$VAR` / `%VAR%` 展开时传 `shell: true`，或直接用 `command_line` 写整行。
 4. `env_get`：单键读取。**敏感项默认拒绝返回明文**，回执为 `{ denied: "SENSITIVE_PLAINTEXT_BLOCKED", maskedValue, hint }`——因为返回值会整条落进 Agent 的对话上下文并被持久化。只有显式传 `allow_plaintext: true` 才放行，仅限第三方接口硬性要求原文的兼容场景。
 5. `env_probe`：**【凭据自检】**不取明文地验证密钥是否仍然有效。`kind: "github"` 返回账号、scope 与（传了 `repo` 时）仓库 push 权限；`kind: "http"` 返回状态码。响应体原文永不回传，因此「这枚 Key 还能不能用」不再需要把值取出来看。
 6. `env_set`：新增或更新单个变量。
@@ -44,6 +44,30 @@ My Env 是一个跨平台的环境变量与密钥安全中枢：在设置页统�
    { "command": "npm", "args": ["run", "deploy"], "keys": ["DEPLOY_TOKEN"] }
    ```
 2. 进程内通过 `process.env.DEPLOY_TOKEN` 直接获取，命令行参数与对话中不包含明文，输出若报错也会自动掩码脱敏。
+
+## 关于 shell 语义（v0.2.4 重写）
+
+旧实现用 `spawn(command, args, { shell: true })`。这个写法有两个问题：
+
+1. Node 会把 `command` 与 `args` **直接拼接**成命令行交给 shell，`args` 完全不做转义，因此抛 `DEP0190` 弃用警告，同时留下命令注入面；
+2. 「args 该不该转义」在 `cmd.exe` 和 `sh` 里规则完全不同，插件层无论怎么转都可能转错。
+
+v0.2.4 改为**显式包装**：自己选 shell、自己拼整行、以 `shell: false` 交给系统。
+
+```
+POSIX  : spawn('/bin/sh', ['-c', line], { shell: false })
+Windows: spawn(ComSpec,    ['/d', '/s', '/c', line], { shell: false })
+```
+
+语义与 `shell: true` 完全等价，但 shell 的选择显式可控，也不再触发弃用警告。
+
+同时新增 `command_line` 入口：
+
+```json
+{ "command_line": "git push https://x-access-token:$GITHUB_TOKEN@github.com/owner/repo.git", "keys": ["GITHUB_TOKEN"] }
+```
+
+需要 shell 语义时直接写整行 —— **引号与转义由你负责，插件不会二次转义**。这比让插件猜怎么拼更安全，也更符合 shell 的本意。`command_line` 优先于 `command` + `args`。
 
 ## 凭据自检（env_probe，v0.2.3 新增）
 
@@ -118,3 +142,11 @@ My Env 是一个跨平台的环境变量与密钥安全中枢：在设置页统�
 - **`env_exec` 打通 `shell` 参数**：worker 层早已实现 shell 语义，但 main.js 未透传、ghost.json 未声明，导致手册承诺的能力永远无法触达。现三层对齐。
 - **新增 `env_probe`**：不取明文即可验证凭据有效性（GitHub 账号/scope/仓库 push 权限，或任意 HTTP 状态码）。
 - 修正手册中关于 `timeout_ms` / `maxTotalMs` 可「用满 15 分钟」的误导描述——宿主单次 RPC 硬上限仍是 120000 ms。
+
+### v0.2.4
+
+- **`shell: true` 的 DEP0190 根治**：由「Node 拼接 cmd+args 交给 shell」改为「显式 `/bin/sh -c` / `cmd.exe /d /s /c` 包装 + `shell:false`」。语义等价，但 shell 选择显式可控、不再触发弃用警告，也不再依赖 Node 自己的拼接行为。
+- **新增 `env_exec.command_line`**：需要 shell 语义时直接给整行命令，引号与转义由调用方负责，插件不做二次转义。
+- **`env_list` 新增 `keys` 参数**：一次精确查看多条键（仍只回脱敏值），不存在的键通过 `missing` 报告。
+- **保留 `env_get`**：评估后确认它对「读非敏感配置」（如 `API_HOST` / `MODEL_NAME`）仍有价值，只是不常用；删除会让这类读取退化为「落盘 + 读文件」两步并留下文件残骸。它继续保留 v0.2.3 的敏感项默认拒明文策略。
+- 工具面保持 7 个不变。

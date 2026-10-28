@@ -250,7 +250,18 @@ const methods = {
     const store = readStore();
     const vars = store.variables;
     const q = String(params?.query || '').trim().toLowerCase();
+
+    /* v0.2.4：支持按 keys 精确查看若干键（仍只回脱敏值与元数据）。
+     * env_get 保留不动——它读非敏感配置（API_HOST / MODEL_NAME）时仍然最省事；
+     * 这里只是补上「一次看多条 + 报告缺失键」的能力。 */
+    const wantKeys = Array.isArray(params?.keys)
+      ? params.keys.map((k) => String(k).trim()).filter(Boolean)
+      : [];
+    const wanted = wantKeys.length > 0 ? new Set(wantKeys) : null;
+    const missing = wanted ? wantKeys.filter((k) => !Object.prototype.hasOwnProperty.call(vars, k)) : [];
+
     const items = Object.keys(vars)
+      .filter((k) => (wanted ? wanted.has(k) : true))
       .filter((k) => {
         if (!q) return true;
         return k.toLowerCase().indexOf(q) >= 0 || (vars[k].memo || '').toLowerCase().indexOf(q) >= 0;
@@ -263,7 +274,7 @@ const methods = {
         sensitive: isSensitive(vars[k]),
         updatedAt: vars[k].updatedAt || 0
       }));
-    return { total: items.length, items };
+    return { total: items.length, items, missing: missing.length ? missing : undefined };
   },
 
   'env/get': (params) => {
@@ -402,7 +413,10 @@ const methods = {
 
   'env/exec': async (params) => {
     const command = String(params?.command || '').trim();
-    if (!command) throw new Error('缺少必需参数: command');
+    const commandLine = String(params?.command_line || '').trim();
+    if (!command && !commandLine) {
+      throw new Error('缺少必需参数: command（或直接给 command_line 走 shell 语义）');
+    }
 
     const args = Array.isArray(params.args) ? params.args.map(String) : [];
     const cwd = params.cwd ? path.resolve(params.cwd) : process.cwd();
@@ -444,20 +458,45 @@ const methods = {
       let stdoutTruncated = false;
       let stderrTruncated = false;
 
-      // Windows 平台适配：若明确传了 shell 参数按传参；若未传，则对非批处理脚本优先 shell: false 避免 cmd.exe 误拆引号
+      /* v0.2.4：不再使用 spawn(cmd, args, { shell: true })。
+       * 该写法下 Node 把 cmd+args 直接拼接交给 shell、args 完全不做转义，
+       * 因此既抛 DEP0190 弃用警告，又留下命令注入面；而「args 该不该转义」
+       * 在 cmd.exe 与 sh 的规则不同，插件层不可能转对。
+       *
+       * 改为显式包装：自己选 shell、自己拼整行、以 shell:false 交给系统。
+       *   POSIX  : spawn('/bin/sh', ['-c', line])
+       *   Windows: spawn(ComSpec, ['/d', '/s', '/c', line])
+       * 语义与 shell:true 等价，但 shell 选择显式可控，也不再触发弃用警告。
+       *
+       * 另增 command_line 入口：调用方要 shell 语义时直接写整行
+       * （引号与转义由他负责——这正是 shell 的本意），比让插件猜怎么拼更安全。
+       */
       const isWin = process.platform === 'win32';
-      let useShell = false;
-      if (typeof params?.shell === 'boolean') {
-        useShell = params.shell;
-      } else if (isWin) {
-        const lower = command.toLowerCase();
-        useShell = lower.endsWith('.cmd') || lower.endsWith('.bat');
+      const explicitLine = typeof params?.command_line === 'string' && params.command_line.trim()
+        ? params.command_line.trim()
+        : null;
+      const wantShell = typeof params?.shell === 'boolean'
+        ? params.shell
+        : (isWin && /\.(cmd|bat)$/i.test(command));
+      const shellMode = explicitLine !== null || wantShell;
+
+      let spawnCmd = command;
+      let spawnArgs = args;
+      if (shellMode) {
+        const line = explicitLine !== null ? explicitLine : [command].concat(args).join(' ');
+        if (isWin) {
+          spawnCmd = process.env.ComSpec || 'cmd.exe';
+          spawnArgs = ['/d', '/s', '/c', line];
+        } else {
+          spawnCmd = '/bin/sh';
+          spawnArgs = ['-c', line];
+        }
       }
 
-      const proc = spawn(command, args, {
+      const proc = spawn(spawnCmd, spawnArgs, {
         cwd,
         env,
-        shell: useShell,
+        shell: false,
         stdio: ['ignore', 'pipe', 'pipe']
       });
 

@@ -8,6 +8,9 @@
       "parameters": {
         "/properties/query": {
           "description": "Optional keyword matched against key names or memos."
+        },
+        "/properties/keys": {
+          "description": "Return only these exact keys (still masked); unknown keys are listed in 'missing'."
         }
       }
     },
@@ -87,6 +90,9 @@
         },
         "/properties/shell": {
           "description": "Run through the platform shell so $VAR expands; default false (auto for .cmd/.bat)."
+        },
+        "/properties/command_line": {
+          "description": "Full command line executed through the shell, taking precedence over command+args. You own the quoting; nothing is silently re-escaped."
         }
       }
     },

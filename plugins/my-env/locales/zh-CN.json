@@ -8,6 +8,9 @@
       "parameters": {
         "/properties/query": {
           "description": "可选关键词，匹配变量名或备注。"
+        },
+        "/properties/keys": {
+          "description": "只返回这些精确键名（仍为脱敏值），不存在的键在 missing 中列出，用于批量查看。"
         }
       }
     },
@@ -87,6 +90,9 @@
         },
         "/properties/shell": {
           "description": "是否通过平台 shell 执行命令以支持 $VAR / %VAR% 展开，默认 false（Windows 的 .cmd/.bat 自动启用）。"
+        },
+        "/properties/command_line": {
+          "description": "直接交给 shell 执行的完整命令行，优先于 command+args。需要 shell 语义时用它：引号与转义由调用方负责，插件不会二次转义。"
         }
       }
     },
