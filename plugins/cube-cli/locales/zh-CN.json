@@ -1,7 +1,7 @@
 {
   "name": "Cube CLI",
   "description": "CubeSandbox 控制面遥控器：管理沙箱生命周期、端口与文件。",
-  "whenToUse": "需要创建、列出、检查、暂停、恢复、快照、克隆或删除 CubeSandbox，或排查控制面连接问题时。",
+  "whenToUse": "需要创建、列出、检查、暂停、恢复、快照、克隆或删除 CubeSandbox，或排查控制面连接问题时。【规范要求】拉取沙箱(new)时必须中文填写本次沙箱实际用途、当前Agent身份与会话ID。",
   "tools": {
     "cube_version": {
       "description": "查看 Cube CLI 版本与平台信息；返回 { stdout, stderr, exitCode }。"
@@ -10,17 +10,17 @@
       "description": "检查 CubeSandbox 控制面健康状态；返回 { stdout, stderr, exitCode }。"
     },
     "cube_run": {
-      "description": "执行任意 Cube CLI 子命令（new、ls、rm、exec、code、info、ports 等）；返回 { stdout, stderr, exitCode }。",
+      "description": "执行任意 Cube CLI 子命令（new、ls、rm、exec、code、info、ports 等）；返回 { stdout, stderr, exitCode }。\n【沙箱创建规范】创建沙箱(new)时，必须在 args 中使用中文通过 --note 明确注明本次沙箱的「实际用途」、「当前Agent身份」以及「会话ID」（例如: [\"--need=code\", \"--note=【排障】主控Agent测试转义bug_会话c16f32\", \"--agent=main-agent\", \"--timeout=1800\"]），严禁无用途匿名拉取沙箱。",
       "parameters": {
         "/properties/cmd": { "description": "子命令名称，如 new、ls、rm、exec、code、info。" },
-        "/properties/args": { "description": "传给子命令的参数，如 [\"--need=code\"] 或 [\"sid\", \"uname -a\"]。" }
+        "/properties/args": { "description": "传给子命令的参数。创建沙箱(new)示例: [\"--need=code\", \"--note=【实际用途】Agent身份_会话ID\", \"--agent=Agent身份\", \"--timeout=1800\"]。必须中文注明用途、自身Agent身份与会话ID。" }
       }
     },
     "cube_submit": {
-      "description": "异步提交长任务并立即返回；返回 { taskId, cmd, status, message }。",
+      "description": "异步提交长任务并立即返回；返回 { taskId, cmd, status, message }。\n【沙箱创建规范】异步创建沙箱(new)同样必须在 args 中使用中文通过 --note 说明实际用途、Agent身份与会话ID。",
       "parameters": {
         "/properties/cmd": { "description": "要异步执行的子命令。" },
-        "/properties/args": { "description": "传给子命令的参数。" }
+        "/properties/args": { "description": "传给子命令的参数。创建沙箱时必须带上包含中文实际用途、Agent身份与会话ID的 --note 参数。" }
       }
     },
     "cube_log": {

@@ -1,4 +1,4 @@
-# Subagent Model Router — Agent guide
+# Subagent Router — Agent guide
 
 Give Cindy's subagents a model chain instead of one inherited model.
 

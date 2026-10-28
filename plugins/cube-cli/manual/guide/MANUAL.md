@@ -55,7 +55,7 @@
 
 **沙箱**
 ```json
-{ "cmd": "new",  "args": ["--need=code", "--timeout=1800", "--note=demo"] }
+{ "cmd": "new",  "args": ["--need=code", "--timeout=1800", "--note=【测试】主控Agent验证转义bug_会话c16f32", "--agent=main-agent"] }
 { "cmd": "ls",   "args": [] }
 { "cmd": "info", "args": ["<sandboxID>"] }
 { "cmd": "exec", "args": ["<sandboxID>", "uname -a && lscpu"] }
@@ -63,6 +63,8 @@
 { "cmd": "ports","args": ["<sandboxID>"] }
 { "cmd": "rm",   "args": ["<sandboxID>"] }
 ```
+
+> **【沙箱创建铁律】** Agent 拉取沙箱（`new`）时，**必须中文填写**本次沙箱的「实际用途」、「当前 Agent 身份」以及「会话 ID」（通过 `--note` 与 `--agent` 参数）。严禁创建空白或无意义备注的匿名沙箱。格式建议：`--note="【业务类型】任务简述_Agent角色_会话ID"`。
 
 `new` 输出里的 `[sandbox] AIO 网关:` 那行**就是** `aiod-cli` 的 `SANDBOX_BASE`：
 
@@ -124,6 +126,26 @@ export SANDBOX_BASE="https://<网关>/sandbox/$SID/8080"
 ```
 
 `mcp-server` 子命令把 37 个控制面能力以 stdio MCP 暴露（`sandbox_*` / `file_*` / `snapshot_*` / `volume_*` / `template_*` / `api_call`），完整清单以 `tools/list` 为准。
+
+---
+
+## 沙箱写代码与脚本执行正确姿势（避免转义陷阱）
+
+`cube-cli` 和沙箱数据面支持代码与文件的**无损传递**（无转义 Bug）。但不同调用方式的转义边界不同，建议遵循以下最佳实践：
+
+1. **执行代码片段：首选 `code` 命令（零转义干扰）**
+   - 推荐：`{ "cmd": "code", "args": ["<sid>", "<code>", "--lang=python"] }`（支持 `python` / `js` / `bash`）
+   - **原理**：代码作为 JSON 数据载荷直达沙箱执行内核，**不经过外层 Shell 解释**。
+   - 无论是多行缩进、嵌套单双引号 `\"` / `\'`、连续反斜杠 `\\\\`、正则原始字符串 `r"..."`，还是 `$VAR`、反引号、Emoji，均会 100% 原样保留执行。
+
+2. **写代码文件到沙箱：首选 `write` 本地直传（100% 字节无损）**
+   - 推荐：本地生成/编辑文件后，调用 `{ "cmd": "write", "args": ["<sid>", "./script.py", "/root/script.py"] }`
+   - **实测保证**：两端 SHA256 散列值完全一致，没有任何编码、换行转换或转义失真。
+
+3. **在终端 / `exec` 中生成文件：严禁使用裸 `cat << EOF`，必须加单引号 `cat << 'EOF'`**
+   - ❌ **错误做法**：`cat << EOF > app.py` 或 `echo "..." > app.py`
+     - Linux Bash 会在写入文件前**提前求值展开** `$VAR`、反引号 `` `cmd` `` 与 `\` 转义字符，导致代码中的变量被清空、模板字符串损坏、反斜杠被吃掉（常被误以为是 CLI bug）。
+   - ✅ **正确做法**：始终使用 **`cat << 'EOF' > app.py`**（`EOF` 加上单引号），告知 Bash 保持纯粹的原始文本流（raw heredoc），不对内联变量和反斜杠做任何求值。
 
 ---
 

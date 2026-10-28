@@ -1,5 +1,5 @@
 {
-  "name": "Subagent Model Router",
+  "name": "Subagent Router",
   "description": "Give Cindy's subagents a model chain: pick models per group, drag to order them, and the next model takes over when one fails.",
   "whenToUse": "When subagents should run on cheaper models, when a failing model should hand over to the next one, or when providers and models need grouping by task difficulty.",
   "tools": {

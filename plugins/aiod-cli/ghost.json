@@ -4,7 +4,7 @@
   "name": "Aiod CLI",
   "description": "Remote control for the aiod v2 API inside a CubeSandbox: process execution, file management, browser and MCP.",
   "whenToUse": "Run commands, manage files, drive the browser, execute code or start an MCP server inside a CubeSandbox.",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "minCindyVersion": "3.0.0",
   "entry": "main.js",
   "command": "aiod",

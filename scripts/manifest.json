@@ -52,7 +52,7 @@
       "id": "cube-cli",
       "name": "Cube CLI",
       "description": "CubeSandbox 控制面遥控器：创建、管理沙箱生命周期、端口与文件操作",
-      "version": "0.2.1",
+      "version": "0.2.2",
       "command": "cube",
       "author": "otaku-say",
       "tags": [
@@ -72,7 +72,7 @@
       "id": "aiod-cli",
       "name": "Aiod CLI",
       "description": "CubeSandbox 沙箱内 aiod v2 API 遥控器：进程执行、文件管理、浏览器与 MCP",
-      "version": "0.2.0",
+      "version": "0.2.1",
       "command": "aiod",
       "author": "otaku-say",
       "tags": [
@@ -115,9 +115,9 @@
     },
     "subagent-router": {
       "id": "subagent-router",
-      "name": "Subagent Model Router",
+      "name": "Subagent Router",
       "description": "子代理模型链与分组：按分组挑选模型、拖动排序，失败自动换下一个",
-      "version": "0.1.5",
+      "version": "0.1.6",
       "command": "router",
       "author": "otaku-say",
       "tags": [

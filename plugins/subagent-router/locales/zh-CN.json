@@ -1,5 +1,5 @@
 {
-  "name": "Subagent Model Router",
+  "name": "Subagent Router",
   "description": "给 Cindy 的子代理配上模型链：在设置页里按分组挑选模型、拖动排序，某个模型失败时自动换下一个。",
   "whenToUse": "当子代理应该跑在更便宜的模型上、当某个模型失败需要换下一个、或需要把供应商与模型按任务难度分组时。",
   "tools": {

@@ -4,7 +4,7 @@
   "name": "Cube CLI",
   "description": "Remote control for the CubeSandbox control plane: sandbox lifecycle, ports and files.",
   "whenToUse": "Create, list, inspect, pause, resume, snapshot, clone or delete a CubeSandbox, or debug control-plane connectivity.",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "minCindyVersion": "3.0.0",
   "entry": "main.js",
   "command": "cube",
@@ -65,7 +65,7 @@
     },
     {
       "name": "cube_run",
-      "description": "Run any Cube CLI subcommand (new, ls, rm, exec, code, info, ports...); returns { stdout, stderr, exitCode }.",
+      "description": "Run any Cube CLI subcommand (new, ls, rm, exec, code, info, ports...); returns { stdout, stderr, exitCode }. [Mandatory Rule] When running 'new' to create a sandbox, you must specify in Chinese the actual purpose, agent identity, and session ID via --note (e.g. --note=【测试】主控Agent修复转义bug_会话c16f32) and specify --agent.",
       "parameters": {
         "type": "object",
         "properties": {
@@ -78,7 +78,7 @@
             "items": {
               "type": "string"
             },
-            "description": "Arguments for the subcommand, e.g. [\"--need=code\"] or [\"sid\", \"uname -a\"]."
+            "description": "Arguments for the subcommand. When cmd is 'new', must include Chinese purpose, agent identity, and session ID via --note (e.g. [\"--need=code\", \"--note=【实际用途】Agent身份_会话ID\", \"--agent=AgentName\", \"--timeout=1800\"])."
           }
         },
         "required": [
@@ -88,7 +88,7 @@
     },
     {
       "name": "cube_submit",
-      "description": "Submit a long-running task asynchronously and return immediately; returns { taskId, cmd, status, message }.",
+      "description": "Submit a long-running task asynchronously and return immediately; returns { taskId, cmd, status, message }. Sandbox creation (new) requires Chinese purpose, agent identity, and session ID in --note.",
       "parameters": {
         "type": "object",
         "properties": {
@@ -101,7 +101,7 @@
             "items": {
               "type": "string"
             },
-            "description": "Arguments for the subcommand."
+            "description": "Arguments for the subcommand. Must specify Chinese purpose, agent identity, and session ID in --note if creating a sandbox."
           }
         },
         "required": [
