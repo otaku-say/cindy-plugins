@@ -31,7 +31,7 @@
       "description": "兜底通道：执行其余任意 Cube CLI 子命令（info、ports、logs、pause、resume、connect、timeout、refresh、snap、tpl-*、ls-file、pty-*、raw 等）；返回 { stdout, stderr, exitCode }。禁止用它创建沙箱或上传宿主文件（请用 cube_new / cube_write_file），并拒绝裸 --env=NAME（宿主环境可能含密钥）。"
     },
     "cube_submit": {
-      "description": "异步提交控制面长任务并立即返回 { taskId, cmd, status, message }，用 cube_log 读取输出（cmd=new 完成时还会返回 sandboxId/templateId）。请每 60-90 秒 cube_log 一次，避免 worker 空闲回收（idleTimeout 120 秒）。沙箱内的长命令请用 cube_run exec-async + exec-logs。"
+      "description": "异步提交控制面长任务并立即返回 { taskId, cmd, status, message }，用 cube_log 读取输出（cmd=new 完成时还会返回 sandboxId/templateId）。请每 60-90 秒 cube_log 一次，避免 worker 空闲回收（idleTimeout 300 秒）。沙箱内的长命令请用 cube_run exec-async + exec-logs。"
     },
     "cube_log": {
       "description": "读取 cube_submit 任务日志（可按 offset 增量读）；返回 { taskId, status, completed, exitCode, logs, nextOffset, totalLines }。"
@@ -39,7 +39,7 @@
     "cube_kill": {
       "description": "终止 cube_submit 启动的后台任务；返回 { taskId, killed }。"
     },
-    "cube_selfcheck": {
+    "cube_ping": {
       "description": "零依赖桥接探针：不访问控制面，直接返回 { ok, pid, bootAt, uptimeMs, node, platform, entry, methods, inflight }。任何 cube 工具超时或返回 INTERNAL 时先用它判断 worker 是否收到请求。"
     }
   }

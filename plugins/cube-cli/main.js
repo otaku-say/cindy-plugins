@@ -27,7 +27,7 @@ function intOr(value, fallback) {
 }
 
 const TOOL_DISPATCH = {
-  cube_selfcheck: () => ({ method: 'cube/selfcheck', params: {}, ...budget(15000, 30000) }),
+  cube_ping: () => ({ method: 'cube/ping', params: {}, ...budget(15000, 30000) }),
   cube_health: () => ({ method: 'cube/health', params: {}, ...budget(60000, 120000) }),
   cube_new: (args) => ({
     method: 'cube/new',

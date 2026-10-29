@@ -4,7 +4,7 @@
   "name": "Cube CLI",
   "description": "Remote control for the CubeSandbox control plane: sandbox lifecycle, ports and files.",
   "whenToUse": "Create, list, inspect, pause, resume, snapshot or delete a CubeSandbox; run commands or code inside a sandbox; upload and download files; debug control-plane connectivity.",
-  "version": "0.2.5",
+  "version": "0.2.6",
   "minCindyVersion": "3.0.0",
   "entry": "main.js",
   "command": "cube",
@@ -29,7 +29,7 @@
         "key": "cubesandbox_api_key",
         "label": "CubeSandbox API Key",
         "methods": [
-          "cube/selfcheck",
+          "cube/ping",
           "cube/run",
           "cube/submit",
           "cube/health",
@@ -58,7 +58,7 @@
   },
   "tools": [
     {
-      "name": "cube_selfcheck",
+      "name": "cube_ping",
       "description": "Zero-dependency bridge probe: returns { ok, pid, bootAt, uptimeMs, node, platform, entry, methods, inflight } without touching the control plane. Use it first when any cube tool times out or returns INTERNAL.",
       "parameters": {
         "type": "object",

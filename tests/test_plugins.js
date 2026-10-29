@@ -482,11 +482,11 @@ test('cube-cli worker 被宿主 require 加载时也会启动 JSON-RPC 服务', 
     });
     proc.stderr.on('data', (d) => { err += d.toString(); });
     proc.on('error', (e) => { clearTimeout(timer); reject(e); });
-    proc.stdin.write(JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'cube/selfcheck', params: {} }) + '\n');
+    proc.stdin.write(JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'cube/ping', params: {} }) + '\n');
   }).finally(() => { try { proc.kill(); } catch (_) {} });
 
   assert.equal(reply.id, 1, JSON.stringify(reply));
   assert.equal(reply.result.ok, true);
   assert.equal(typeof reply.result.pid, 'number');
-  assert.ok(Array.isArray(reply.result.methods) && reply.result.methods.includes('cube/selfcheck'));
+  assert.ok(Array.isArray(reply.result.methods) && reply.result.methods.includes('cube/ping'));
 });

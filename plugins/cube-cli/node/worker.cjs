@@ -113,7 +113,7 @@ const MAX_READ_BYTES = 1024 * 1024;
 const SYNC_MAX_SECONDS = 100; // 同步 exec/code 上限：必须小于宿主 timeoutMs 上限（120s）
 const RESERVED_ENV_KEYS = new Set(['__proto__', 'prototype', 'constructor']);
 const BOOT_AT = Date.now();
-const METHODS = ['cube/run','cube/submit','cube/log','cube/kill','cube/new','cube/ls','cube/rm','cube/exec','cube/code','cube/write','cube/read','cube/health','cube/selfcheck'];
+const METHODS = ['cube/run','cube/submit','cube/log','cube/kill','cube/new','cube/ls','cube/rm','cube/exec','cube/code','cube/write','cube/read','cube/health','cube/ping'];
 
 function asText(value) {
   return typeof value === 'string' ? value : '';
@@ -647,7 +647,7 @@ async function handle(request) {
     return { result: await runCli(bin, cmd, args, { env, timeoutMs: 80000 }) };
   }
 
-  if (method === 'cube/selfcheck') {
+  if (method === 'cube/ping') {
     return {
       result: {
         ok: true,
