@@ -46,6 +46,9 @@
     },
     "cube_kill": {
       "description": "Terminate a task started by cube_submit; returns { taskId, killed }."
+    },
+    "cube_selfcheck": {
+      "description": "Zero-dependency bridge probe: returns { ok, pid, bootAt, uptimeMs, node, platform, entry, methods, inflight } without touching the control plane. Call it first when any cube tool times out or returns INTERNAL."
     }
   }
 }

@@ -27,6 +27,7 @@ function intOr(value, fallback) {
 }
 
 const TOOL_DISPATCH = {
+  cube_selfcheck: () => ({ method: 'cube/selfcheck', params: {}, ...budget(15000, 30000) }),
   cube_health: () => ({ method: 'cube/health', params: {}, ...budget(60000, 120000) }),
   cube_new: (args) => ({
     method: 'cube/new',
@@ -133,12 +134,18 @@ cindy.onHostMessage(async (msg) => {
       method: req.method,
       params: { ...req.params, cliEnv: env },
       callId,
-      cancelWithCall: req.cancelWithCall !== false,
+      // 本插件没有前台授权流程，绑定在途调用只会增加宿主侧前置判定；统一不绑定
+      cancelWithCall: false,
       timeoutMs: req.timeoutMs,
       maxTotalMs: req.maxTotalMs
     });
 
-    if (!resp.ok) throw new Error(resp.message || '执行失败');
+    if (!resp.ok) {
+      const code = resp.errorCode ? `[${resp.errorCode}] ` : '';
+      const error = new Error(`${code}${resp.message || '执行失败'} (tool=${tool}, method=${req.method}, callId=${callId})`);
+      error.errorCode = resp.errorCode;
+      throw error;
+    }
     cindy.send({ type: 'tool-result', callId, ok: true, result: resp.result });
   } catch (err) {
     cindy.send({ type: 'tool-result', callId, ok: false, message: err.message || String(err) });

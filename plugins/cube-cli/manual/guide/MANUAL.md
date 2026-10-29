@@ -46,6 +46,7 @@
 | `cube_code` | 沙箱内跑一段代码（python/js/bash） | `sandboxId`、`code`、`language?` |
 | `cube_write_file` | 把字符串写成沙箱内文件（字节精确） | `sandboxId`、`path`、`content` |
 | `cube_read_file` | 读沙箱内文件文本（默认上限 256 KiB） | `sandboxId`、`path`、`maxBytes?` |
+| `cube_selfcheck` | 零依赖桥探针：pid / 方法表 / 运行时长（不访问控制面） | 无 |
 | `cube_health` | 控制面健康 + CLI 版本（一次调用） | 无 |
 | `cube_run` | 其余子命令兜底（info/ports/logs/pause/snap/tpl-*/raw…） | `cmd`、`args[]` |
 | `cube_submit` | 异步派发控制面任务（含 `cmd=new`），立即返回 `taskId` | `cmd`、`args[]`；`cmd=new` 时用 `purpose`/`agent`/`dialogue`；完成后 `cube_log` 返回 `sandboxId`/`templateId` |
@@ -204,6 +205,7 @@
 ## 常见错误与恢复
 
 - **`purpose 必须使用中文填写` / `agent 必填` / `dialogue 必填`**：`cube_new` 的元数据铁律，补齐后再建。
+- **`Node 请求 ... 等待超时` / `INTERNAL`**：先用 `cube_selfcheck` 判定桥是否通。返回 `pid/bootAt` 说明 worker 正常，问题在下游命令；同样超时则说明宿主没把请求送到 worker（重启/重装插件，0.2.5 已修复宿主 `require` 加载时 worker 不启动的问题）。
 - **`创建沙箱请用 cube_new`**：`cube_run cmd=new` 已禁用，改用 `cube_new`（异步用 `cube_submit cmd=new`）。
 - **`HTTP 401/403`**：Key 不对或未注入。确认插件设置页的 CubeSandbox API Key 已保存且非空。
 - **`没有可用的 READY 模板：...`**：先 `tpl-ls` 看现有模板，或 `tpl-pick --need=...`。

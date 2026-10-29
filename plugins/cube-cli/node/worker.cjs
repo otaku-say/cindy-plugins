@@ -112,6 +112,8 @@ const MAX_WRITE_BYTES = 8 * 1024 * 1024; // 与 CLI write 的 stdin 上限一致
 const MAX_READ_BYTES = 1024 * 1024;
 const SYNC_MAX_SECONDS = 100; // 同步 exec/code 上限：必须小于宿主 timeoutMs 上限（120s）
 const RESERVED_ENV_KEYS = new Set(['__proto__', 'prototype', 'constructor']);
+const BOOT_AT = Date.now();
+const METHODS = ['cube/run','cube/submit','cube/log','cube/kill','cube/new','cube/ls','cube/rm','cube/exec','cube/code','cube/write','cube/read','cube/health','cube/selfcheck'];
 
 function asText(value) {
   return typeof value === 'string' ? value : '';
@@ -645,6 +647,22 @@ async function handle(request) {
     return { result: await runCli(bin, cmd, args, { env, timeoutMs: 80000 }) };
   }
 
+  if (method === 'cube/selfcheck') {
+    return {
+      result: {
+        ok: true,
+        pid: process.pid,
+        bootAt: BOOT_AT,
+        uptimeMs: Date.now() - BOOT_AT,
+        node: process.version,
+        platform: `${process.platform}-${process.arch}`,
+        entry: __filename,
+        methods: METHODS,
+        inflight
+      }
+    };
+  }
+
   if (method === 'cube/health') {
     const [health, version] = await Promise.all([
       runCli(bin, 'health', [], { env, timeoutMs: 30000 }),
@@ -883,6 +901,21 @@ async function handle(request) {
 let inflight = 0;
 const MAX_INFLIGHT = 16;
 
+const REQUEST_HARD_TIMEOUT_MS = 118000;
+
+function withHardTimeout(promise, methodName) {
+  let timer = null;
+  const guard = new Promise((_, reject) => {
+    timer = setTimeout(() => {
+      reject(Object.assign(new Error(`请求处理超时（${REQUEST_HARD_TIMEOUT_MS}ms）：${methodName}`), { code: -32001 }));
+    }, REQUEST_HARD_TIMEOUT_MS);
+    if (typeof timer.unref === 'function') timer.unref();
+  });
+  return Promise.race([promise, guard]).finally(() => {
+    if (timer) clearTimeout(timer);
+  });
+}
+
 function startServer() {
   readline.createInterface({ input: process.stdin }).on('line', (line) => {
     if (!line || !line.trim()) return;
@@ -897,27 +930,37 @@ function startServer() {
       reply(request && request.id !== undefined ? request.id : null, null, { code: -32600, message: '无效请求：缺少 method' });
       return;
     }
-    const { id } = request;
+    const { id, method } = request;
     if (inflight >= MAX_INFLIGHT) {
       reply(id, null, { code: -32017, message: `并发调用过多（上限 ${MAX_INFLIGHT}），请稍后重试` });
       return;
     }
     inflight += 1;
-    handle(request)
-      .then(({ result }) => reply(id, result))
+    const startedAt = Date.now();
+    log(`req id=${id} method=${method}`);
+    withHardTimeout(handle(request), method)
+      .then(({ result }) => {
+        log(`res id=${id} method=${method} ${Date.now() - startedAt}ms`);
+        reply(id, result);
+      })
       .catch((err) => {
+        const code = err && typeof err.code === 'number' ? err.code : -32000;
+        const message = err && err.message ? err.message : String(err);
+        log(`res id=${id} method=${method} ${Date.now() - startedAt}ms error=${code} ${message}`);
         if (err && typeof err.code === 'number' && err.message) {
-          reply(id, null, { code: err.code, message: err.message, ...(err.data ? { data: err.data } : {}) });
+          reply(id, null, { code, message, ...(err.data ? { data: err.data } : {}) });
           return;
         }
-        log(`Handler error: ${err && err.message ? err.message : err}`);
-        reply(id, null, { code: -32000, message: err && err.message ? err.message : String(err) });
+        reply(id, null, { code, message });
       })
       .finally(() => { inflight -= 1; });
   });
 }
 
-if (require.main === module) {
+// 宿主通过 createRequire(...)(worker.cjs) 加载本文件，require.main 不是本模块；
+// 因此默认必须启动服务。单测通过环境变量显式关闭。
+const SKIP_SERVER = process.env.CUBE_CLI_WORKER_NO_SERVER === '1';
+if (!SKIP_SERVER) {
   startServer();
 }
 

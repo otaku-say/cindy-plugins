@@ -38,6 +38,9 @@
     },
     "cube_kill": {
       "description": "终止 cube_submit 启动的后台任务；返回 { taskId, killed }。"
+    },
+    "cube_selfcheck": {
+      "description": "零依赖桥接探针：不访问控制面，直接返回 { ok, pid, bootAt, uptimeMs, node, platform, entry, methods, inflight }。任何 cube 工具超时或返回 INTERNAL 时先用它判断 worker 是否收到请求。"
     }
   }
 }

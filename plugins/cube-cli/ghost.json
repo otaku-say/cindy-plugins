@@ -4,7 +4,7 @@
   "name": "Cube CLI",
   "description": "Remote control for the CubeSandbox control plane: sandbox lifecycle, ports and files.",
   "whenToUse": "Create, list, inspect, pause, resume, snapshot or delete a CubeSandbox; run commands or code inside a sandbox; upload and download files; debug control-plane connectivity.",
-  "version": "0.2.4",
+  "version": "0.2.5",
   "minCindyVersion": "3.0.0",
   "entry": "main.js",
   "command": "cube",
@@ -23,12 +23,13 @@
     "entry": "node/worker.cjs",
     "protocol": "json-rpc-stdio",
     "lifecycle": "on-demand",
-    "idleTimeoutSeconds": 120,
+    "idleTimeoutSeconds": 300,
     "secretBindings": [
       {
         "key": "cubesandbox_api_key",
         "label": "CubeSandbox API Key",
         "methods": [
+          "cube/selfcheck",
           "cube/run",
           "cube/submit",
           "cube/health",
@@ -56,6 +57,14 @@
     ]
   },
   "tools": [
+    {
+      "name": "cube_selfcheck",
+      "description": "Zero-dependency bridge probe: returns { ok, pid, bootAt, uptimeMs, node, platform, entry, methods, inflight } without touching the control plane. Use it first when any cube tool times out or returns INTERNAL.",
+      "parameters": {
+        "type": "object",
+        "properties": {}
+      }
+    },
     {
       "name": "cube_health",
       "description": "Check control-plane health and CLI version in one call; returns { healthy, exitCode, health:{stdout,stderr,exitCode}, version:{...} }. Use when a sandbox call fails or before starting work.",

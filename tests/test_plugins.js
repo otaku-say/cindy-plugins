@@ -5,6 +5,9 @@ const path = require('node:path');
 
 const ROOT = path.resolve(__dirname, '..');
 
+// cube-cli worker 默认启动服务；require 加载时（单测）用环境变量关闭
+process.env.CUBE_CLI_WORKER_NO_SERVER = '1';
+
 test('manifest.json matches plugins ghost.json', () => {
   const manifestPath = path.join(ROOT, 'scripts', 'manifest.json');
   assert.ok(fs.existsSync(manifestPath), 'manifest.json exists');
@@ -456,4 +459,34 @@ test('cube-cli 宿主 RPC 预算不超过硬约束（timeoutMs<=120000, maxTotal
   assert.match(execTool.parameters.properties.timeoutSeconds.description, /100/);
   const lsTool = ghost.tools.find((t) => t.name === 'cube_ls');
   assert.ok(lsTool.parameters.properties.metadata, 'cube_ls 必须支持 metadata 过滤');
+});
+
+
+test('cube-cli worker 被宿主 require 加载时也会启动 JSON-RPC 服务', async () => {
+  const { spawn } = require('node:child_process');
+  const worker = path.join(ROOT, 'plugins', 'cube-cli', 'node', 'worker.cjs');
+  const env = { ...process.env };
+  delete env.CUBE_CLI_WORKER_NO_SERVER;
+  const proc = spawn(process.execPath, ['-e', 'require(process.argv[1])', worker], { env, stdio: ['pipe', 'pipe', 'pipe'] });
+
+  const reply = await new Promise((resolve, reject) => {
+    let out = '';
+    let err = '';
+    const timer = setTimeout(() => reject(new Error(`worker 未在 8s 内响应（这是宿主 require 加载路径的回归）stderr=${err.slice(0, 400)}`)), 8000);
+    proc.stdout.on('data', (d) => {
+      out += d.toString();
+      const line = out.split('\n').find((l) => l.trim());
+      if (!line) return;
+      clearTimeout(timer);
+      try { resolve(JSON.parse(line)); } catch (e) { reject(e); }
+    });
+    proc.stderr.on('data', (d) => { err += d.toString(); });
+    proc.on('error', (e) => { clearTimeout(timer); reject(e); });
+    proc.stdin.write(JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'cube/selfcheck', params: {} }) + '\n');
+  }).finally(() => { try { proc.kill(); } catch (_) {} });
+
+  assert.equal(reply.id, 1, JSON.stringify(reply));
+  assert.equal(reply.result.ok, true);
+  assert.equal(typeof reply.result.pid, 'number');
+  assert.ok(Array.isArray(reply.result.methods) && reply.result.methods.includes('cube/selfcheck'));
 });
