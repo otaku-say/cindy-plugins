@@ -7,10 +7,10 @@
       "description": "Check control-plane health and CLI version in one call; returns { healthy, exitCode, health:{stdout,stderr,exitCode}, version:{...} }."
     },
     "cube_new": {
-      "description": "Create a CubeSandbox with complete metadata. purpose (one short Chinese sentence -> metadata.note), agent (main/sub agent identity -> metadata.agent) and dialogue (conversation ID -> separate metadata.dialogue, also sent as the X-Caller header) are required. Template resolution + creation share a 110s budget (host call limit 120s); returns { sandboxId, templateId, gatewayUrl, aiodBase, metadata, warnings, stdout, stderr, exitCode }. If it times out the sandbox may still exist: find it with cube_ls metadata=dialogue=<ID>."
+      "description": "Create a CubeSandbox with complete metadata. purpose (one short Chinese sentence -> metadata.note), agent (main/sub agent identity -> metadata.agent) and dialogue (conversation ID -> metadata.task) are required. Template resolution + creation share a 110s budget (host call limit 120s); returns { sandboxId, templateId, gatewayUrl, aiodBase, metadata, warnings, stdout, stderr, exitCode }. If it times out the sandbox may still exist: find it with cube_ls metadata=task=<ID>."
     },
     "cube_ls": {
-      "description": "List sandboxes (ID / template / state / note); returns { stdout, stderr, exitCode }. Filter by metadata (e.g. dialogue=<ID>) to trace a conversation or clean up leftovers."
+      "description": "List sandboxes (ID / template / state / note); returns { stdout, stderr, exitCode }. Filter by metadata (e.g. task=<ID>) to trace a conversation or clean up leftovers."
     },
     "cube_rm": {
       "description": "Destroy a sandbox and stop its processes; returns { stdout, stderr, exitCode }. Irreversible."

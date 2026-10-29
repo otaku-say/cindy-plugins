@@ -243,7 +243,7 @@ const cubeWorker = require(path.join(ROOT, 'plugins', 'cube-cli', 'node', 'worke
 
 const SID = 'sid00001abcd';
 
-test('cube_new 强制 purpose/agent/dialogue，dialogue 是独立 metadata 键', () => {
+test('cube_new 强制 purpose/agent/dialogue，会话 ID 写入 metadata.task', () => {
   const p = cubeWorker.normalizeNewParams({
     purpose: '修复 my-env 转义 bug 并跑单测',
     agent: 'Cindy(主)',
@@ -252,12 +252,12 @@ test('cube_new 强制 purpose/agent/dialogue，dialogue 是独立 metadata 键',
   const body = JSON.parse(cubeWorker.buildCreateBody({ ...p, templateId: 'tpl-abc123' }));
   assert.equal(body.templateID, 'tpl-abc123');
   assert.equal(body.timeout, 1800);
-  assert.equal(body.metadata.dialogue, 'bb5c7920-31b6-4ba7-9cf5-96bb2a29d4b1');
+  assert.equal(body.metadata.task, 'bb5c7920-31b6-4ba7-9cf5-96bb2a29d4b1');
+  assert.equal(body.metadata.dialogue, undefined, '会话 ID 只写 task，不再写 dialogue 键');
   assert.equal(body.metadata.agent, 'Cindy(主)');
   // note 只写中文用途短句，不得混入 agent / 会话 ID
   assert.equal(body.metadata.note, '修复 my-env 转义 bug 并跑单测');
   assert.ok(!body.metadata.note.includes('dialogue=') && !body.metadata.note.includes('Cindy('));
-  assert.equal(body.metadata.task, '修复 my-env 转义 bug 并跑单测');
   assert.equal(body.metadata.cli, 'cube-cli');
 });
 
@@ -366,9 +366,9 @@ test('cube_write_file / cube_read_file 路径与容量保护', () => {
 
 test('cube_ls 支持元数据过滤与状态/数量', () => {
   assert.deepEqual(cubeWorker.buildLsArgs({}), []);
-  assert.deepEqual(cubeWorker.buildLsArgs({ metadata: 'dialogue=abc-1' }), ['--metadata=dialogue=abc-1']);
-  assert.deepEqual(cubeWorker.buildLsArgs({ metadata: 'dialogue=abc-1,agent=Cindy(主)', state: 'running', limit: 20, v2: true }), [
-    '--metadata=dialogue=abc-1,agent=Cindy(主)',
+  assert.deepEqual(cubeWorker.buildLsArgs({ metadata: 'task=abc-1' }), ['--metadata=task=abc-1']);
+  assert.deepEqual(cubeWorker.buildLsArgs({ metadata: 'task=abc-1,agent=Cindy(主)', state: 'running', limit: 20, v2: true }), [
+    '--metadata=task=abc-1,agent=Cindy(主)',
     '--state=running',
     '--limit=20',
     '--v2'
@@ -438,7 +438,7 @@ test('cube-cli 文档与工具面同步', () => {
   for (const tool of ['cube_new', 'cube_exec', 'cube_code', 'cube_write_file', 'cube_read_file', 'cube_ls', 'cube_rm', 'cube_health', 'cube_run']) {
     assert.ok(manual.includes(tool), `MANUAL.md 缺少 ${tool}`);
   }
-  assert.ok(manual.includes('dialogue='), 'MANUAL.md 必须写明 dialogue 元数据');
+  assert.ok(manual.includes('metadata.task') || manual.includes('metadata=task='), 'MANUAL.md 必须写明会话 ID 写入 metadata.task');
 });
 
 test('cube-cli 宿主 RPC 预算不超过硬约束（timeoutMs<=120000, maxTotalMs>=timeoutMs）', () => {

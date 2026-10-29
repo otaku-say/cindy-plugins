@@ -4,7 +4,7 @@
   "name": "Cube CLI",
   "description": "Remote control for the CubeSandbox control plane: sandbox lifecycle, ports and files.",
   "whenToUse": "Create, list, inspect, pause, resume, snapshot or delete a CubeSandbox; run commands or code inside a sandbox; upload and download files; debug control-plane connectivity.",
-  "version": "0.2.3",
+  "version": "0.2.4",
   "minCindyVersion": "3.0.0",
   "entry": "main.js",
   "command": "cube",
@@ -66,7 +66,7 @@
     },
     {
       "name": "cube_new",
-      "description": "Create a CubeSandbox with complete metadata. purpose (one short Chinese sentence -> metadata.note), agent (main/sub agent identity -> metadata.agent) and dialogue (conversation ID -> separate metadata.dialogue, also sent as the X-Caller header) are REQUIRED. Template resolution + creation share a 110s budget (host call limit 120s). Returns { sandboxId, templateId, gatewayUrl, aiodBase, metadata, warnings, stdout, stderr, exitCode }. If it times out, the sandbox may still exist: recover it with cube_ls metadata=dialogue=<ID>.",
+      "description": "Create a CubeSandbox with complete metadata. purpose (one short Chinese sentence -> metadata.note), agent (main/sub agent identity -> metadata.agent) and dialogue (conversation ID -> metadata.task) are REQUIRED. Template resolution + creation share a 110s budget (host call limit 120s). Returns { sandboxId, templateId, gatewayUrl, aiodBase, metadata, warnings, stdout, stderr, exitCode }. If it times out, the sandbox may still exist: recover it with cube_ls metadata=task=<ID>.",
       "parameters": {
         "type": "object",
         "properties": {
@@ -80,7 +80,7 @@
           },
           "dialogue": {
             "type": "string",
-            "description": "当前对话 ID（会话 ID）。写入独立的 metadata.dialogue，并作为 X-Caller 请求头发送。"
+            "description": "当前对话 ID（会话 ID）。写入 metadata.task。"
           },
           "need": {
             "type": "string",
@@ -123,13 +123,13 @@
     },
     {
       "name": "cube_ls",
-      "description": "List sandboxes (ID / template / state / note); returns { stdout, stderr, exitCode }. Optional metadata filter (e.g. dialogue=<ID>) makes sandbox-to-conversation lookup and leftover cleanup possible.",
+      "description": "List sandboxes (ID / template / state / note); returns { stdout, stderr, exitCode }. Optional metadata filter (e.g. task=<ID>) makes sandbox-to-conversation lookup and leftover cleanup possible.",
       "parameters": {
         "type": "object",
         "properties": {
           "metadata": {
             "type": "string",
-            "description": "按元数据过滤，格式 key=value；多个用逗号分隔，例如 dialogue=bb5c7920-31b6-4ba7-9cf5-96bb2a29d4b1。"
+            "description": "按元数据过滤，格式 key=value；多个用逗号分隔，例如 task=bb5c7920-31b6-4ba7-9cf5-96bb2a29d4b1。"
           },
           "state": {
             "type": "string",
@@ -338,7 +338,7 @@
           },
           "dialogue": {
             "type": "string",
-            "description": "cmd=new 时必填：当前对话 ID（写入 metadata.dialogue）。"
+            "description": "cmd=new 时必填：当前对话 ID（写入 metadata.task）。"
           },
           "need": {
             "type": "string",

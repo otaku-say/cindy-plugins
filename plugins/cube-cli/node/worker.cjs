@@ -254,8 +254,8 @@ function buildCreateBody(p) {
   const metadata = {
     agent: p.agent,
     note: p.purpose,
-    task: p.purpose,
-    dialogue: p.dialogue,
+    // 会话 ID 写入 metadata.task（平台任务函数可见；可用 --metadata=task=<ID> 过滤）
+    task: p.dialogue,
     cli: 'cube-cli'
   };
   const body = { templateID: p.templateId, timeout: p.timeout, metadata };
@@ -314,8 +314,8 @@ async function resolveTemplate(bin, env, p, deadline = Date.now() + 20000) {
   return { templateId, gatewayPort };
 }
 
-function createRawArgs(body, dialogue) {
-  return ['POST', '/sandboxes', `--header=X-Caller:${dialogue}`, `--body=${body}`];
+function createRawArgs(body) {
+  return ['POST', '/sandboxes', `--body=${body}`];
 }
 
 function parseCreateResponse(stdout, proxyUrl, gatewayPort) {
@@ -401,7 +401,7 @@ function buildReadArgs(params = {}) {
 function buildLsArgs(params = {}) {
   const args = [];
   if (params.metadata !== undefined && params.metadata !== null && params.metadata !== '') {
-    if (typeof params.metadata !== 'string') throw invalid('metadata 必须是字符串，例如 dialogue=xxx');
+    if (typeof params.metadata !== 'string') throw invalid('metadata 必须是字符串，例如 task=xxx');
     const metadata = params.metadata.trim();
     if (!/^[A-Za-z0-9_.:-]+=[^\u0000-\u001f]+(,[A-Za-z0-9_.:-]+=[^\u0000-\u001f]+)*$/.test(metadata)) {
       throw invalid('metadata 格式应为 key=value 或 key1=v1,key2=v2');
@@ -665,21 +665,21 @@ async function handle(request) {
     const deadline = Date.now() + 110000;
     const { templateId, gatewayPort } = await resolveTemplate(bin, env, p, deadline);
     const body = buildCreateBody({ ...p, templateId });
-    const run = await runCli(bin, 'raw', createRawArgs(body, p.dialogue), {
+    const run = await runCli(bin, 'raw', createRawArgs(body), {
       env,
       timeoutMs: remaining(deadline, 110000),
       maxOutput: MAX_CREATE_OUTPUT
     });
     if (run.exitCode !== 0) throw Object.assign(new Error(failedCliMessage(run)), { code: -32010 });
     if (run.stdoutTruncated) {
-      throw Object.assign(new Error('创建响应超过 2MiB 被截断，无法确认结果；请用 cube_ls metadata=dialogue=... 核对后再决定是否 cube_rm'), { code: -32015 });
+      throw Object.assign(new Error('创建响应超过 2MiB 被截断，无法确认结果；请用 cube_ls metadata=task=... 核对后再决定是否 cube_rm'), { code: -32015 });
     }
     let parsed;
     try {
       parsed = parseCreateResponse(run.stdout, env.CUBESANDBOX_PROXY_URL, gatewayPort);
     } catch (err) {
       throw Object.assign(
-        new Error(`${err.message}；沙箱可能已经创建，请先用 cube_ls metadata=dialogue=${p.dialogue} 核对再决定 cube_rm，避免重复创建`),
+        new Error(`${err.message}；沙箱可能已经创建，请先用 cube_ls metadata=task=${p.dialogue} 核对再决定 cube_rm，避免重复创建`),
         { code: err.code || -32014 }
       );
     }
@@ -690,7 +690,7 @@ async function handle(request) {
         templateId,
         gatewayUrl: parsed.gatewayUrl,
         aiodBase: parsed.aiodBase,
-        metadata: { agent: p.agent, note: p.purpose, task: p.purpose, dialogue: p.dialogue, cli: 'cube-cli' },
+        metadata: { agent: p.agent, note: p.purpose, task: p.dialogue, cli: 'cube-cli' },
         warnings,
         stdout: run.stdout,
         stderr: run.stderr,
@@ -785,7 +785,7 @@ async function handle(request) {
             taskRecord.exitCode = 130;
             return;
           }
-          const createArgs = createRawArgs(buildCreateBody({ ...prepared, templateId }), prepared.dialogue);
+          const createArgs = createRawArgs(buildCreateBody({ ...prepared, templateId }));
           taskRecord.args = createArgs;
           const proc = spawn(bin, ['raw', ...createArgs], { env, stdio: ['ignore', 'pipe', 'pipe'] });
           attachTaskProcess(taskRecord, proc);

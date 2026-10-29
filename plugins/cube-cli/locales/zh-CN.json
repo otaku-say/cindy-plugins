@@ -7,10 +7,10 @@
       "description": "一次调用同时检查控制面健康状态与 CLI 版本；返回 { healthy, exitCode, health:{stdout,stderr,exitCode}, version:{...} }。沙箱调用报错或开工前自检时使用。"
     },
     "cube_new": {
-      "description": "创建 CubeSandbox 并写入完整元数据。purpose（一句简短中文用途→metadata.note）、agent（主/子 Agent 身份→metadata.agent）、dialogue（对话 ID→独立 metadata.dialogue，并作为 X-Caller 头）三项必填。模板解析+创建共享 110 秒预算（宿主单次调用上限 120 秒）。返回 { sandboxId, templateId, gatewayUrl, aiodBase, metadata, warnings, stdout, stderr, exitCode }。若超时，沙箱可能已存在：用 cube_ls metadata=dialogue=<ID> 找回后 cube_rm。"
+      "description": "创建 CubeSandbox 并写入完整元数据。purpose（一句简短中文用途→metadata.note）、agent（主/子 Agent 身份→metadata.agent）、dialogue（对话 ID→metadata.task）三项必填。模板解析+创建共享 110 秒预算（宿主单次调用上限 120 秒）。返回 { sandboxId, templateId, gatewayUrl, aiodBase, metadata, warnings, stdout, stderr, exitCode }。若超时，沙箱可能已存在：用 cube_ls metadata=task=<ID> 找回后 cube_rm。"
     },
     "cube_ls": {
-      "description": "列出沙箱（ID / 模板 / 状态 / 备注）；返回 { stdout, stderr, exitCode }。可用 metadata 过滤（如 dialogue=<ID>）按会话追溯或清理遗留沙箱。"
+      "description": "列出沙箱（ID / 模板 / 状态 / 备注）；返回 { stdout, stderr, exitCode }。可用 metadata 过滤（如 task=<ID>）按会话追溯或清理遗留沙箱。"
     },
     "cube_rm": {
       "description": "销毁沙箱并终止其进程；返回 { stdout, stderr, exitCode }。不可恢复。任务结束应立即调用。"

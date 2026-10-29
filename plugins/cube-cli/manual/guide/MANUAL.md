@@ -40,7 +40,7 @@
 | 工具 | 作用 | 关键参数 |
 |---|---|---|
 | `cube_new` | 建沙箱，**自动写入元数据**，返回 `sandboxId` / `gatewayUrl` / `aiodBase` | `purpose`、`agent`、`dialogue`、`need`、`timeoutSeconds` |
-| `cube_ls` | 列沙箱（ID/模板/状态/备注） | `metadata?`（`dialogue=<ID>`）、`state?`、`limit?`、`v2?` |
+| `cube_ls` | 列沙箱（ID/模板/状态/备注） | `metadata?`（`task=<ID>`）、`state?`、`limit?`、`v2?` |
 | `cube_rm` | 销毁沙箱（不可恢复） | `sandboxId` |
 | `cube_exec` | 沙箱内执行一条 shell 命令 | `sandboxId`、`command`、`cwd?`、`timeoutSeconds?` |
 | `cube_code` | 沙箱内跑一段代码（python/js/bash） | `sandboxId`、`code`、`language?` |
@@ -62,12 +62,12 @@
 
 | 参数 | 填写内容 | 落到平台元数据 |
 |---|---|---|
-| `purpose` | **一句简短中文用途**（≤60 字），如「修复 my-env 转义 bug 并跑单测」；不要写 Agent 名或会话 ID | `metadata.note`（列表「备注」列）与 `metadata.task` |
+| `purpose` | **一句简短中文用途**（≤60 字），如「修复 my-env 转义 bug 并跑单测」；不要写 Agent 名或会话 ID | `metadata.note`（列表「备注」列） |
 | `agent` | 当前平台 Agent 身份（主/子），如 `Cindy(主)`、`worker-2(子)` | `metadata.agent` |
-| `dialogue` | 当前对话 ID（会话 ID） | `metadata.dialogue`（独立键），并随创建请求发送 `X-Caller: <ID>` 头 |
+| `dialogue` | 当前对话 ID（会话 ID） | `metadata.task` |
 
-> 为什么不是 `cube-cli new`？上游 0.7.3 的 `new` 只写 `agent/note/task/cli` 四个键，没有 dialogue 参数；
-> 而控制面在创建时**接受并保留任意 metadata 键**（实测 `dialogue` 原样落库），也没有更新元数据的接口。
+> 为什么不是 `cube-cli new`？上游 0.7.3 的 `new` 的 `task` 参数只用来放「做什么」，不适合放会话 ID；
+> 而控制面在创建时**接受并保留任意 metadata 键**，所以插件直接用 `raw POST /sandboxes` 写入 `task=<会话ID>`。
 > 因此插件先用 `tpl-pick`/`tpl-resolve` 解析模板、`tpl-info` 取网关端口，再用 `raw POST /sandboxes` 带完整元数据创建。
 
 示例：
@@ -76,7 +76,7 @@
 { "purpose": "修复 my-env 转义 bug 并跑单测", "agent": "Cindy(主)", "dialogue": "bb5c7920-31b6-4ba7-9cf5-96bb2a29d4b1", "need": "code", "timeoutSeconds": 1800 }
 ```
 
-单次 `cube_new` 的模板解析 + 创建共享 **110 秒**预算（宿主单次调用上限 120 秒）。**若超时报错，沙箱可能已经建好**：先用 `cube_ls { "metadata": "dialogue=<对话ID>" }` 核对，再决定 `cube_rm` 还是重试，避免重复拉起。
+单次 `cube_new` 的模板解析 + 创建共享 **110 秒**预算（宿主单次调用上限 120 秒）。**若超时报错，沙箱可能已经建好**：先用 `cube_ls { "metadata": "task=<对话ID>" }` 核对，再决定 `cube_rm` 还是重试，避免重复拉起。
 
 返回样例：
 
@@ -85,12 +85,12 @@
   "templateId": "tpl-f8457cc2a17f0907c92d17fe",
   "gatewayUrl": "/sandbox/cd1e093c8f1f403a9b829d3c995103c2/8080/",
   "aiodBase": "https://cubesandbox-proxy.4a8a.com/sandbox/cd1e093c8f1f403a9b829d3c995103c2/8080/",
-  "metadata": { "agent": "Cindy(主)", "note": "修复 my-env 转义 bug 并跑单测", "task": "修复 my-env 转义 bug 并跑单测", "dialogue": "bb5c7920-31b6-4ba7-9cf5-96bb2a29d4b1" } }
+  "metadata": { "agent": "Cindy(主)", "note": "修复 my-env 转义 bug 并跑单测", "task": "bb5c7920-31b6-4ba7-9cf5-96bb2a29d4b1" } }
 ```
 
 `aiodBase` 就是 `aiod-cli` 的 `SANDBOX_BASE`。
 
-**按会话查沙箱**：`cube_ls { "metadata": "dialogue=<对话ID>" }`（等价 `cube_run` 的 `ls --metadata=...`；v1 服务端最多返回 200 条），或 `cube_run info <sid>` 看归属块（`dialogue` 是独立 metadata 键）。
+**按会话查沙箱**：`cube_ls { "metadata": "task=<对话ID>" }`（等价 `cube_run` 的 `ls --metadata=...`；v1 服务端最多返回 200 条），或 `cube_run info <sid>` 看归属块（会话 ID 在 `task` 键）。
 
 **用完即毁**：任务结束（含失败）立即 `cube_rm`，不要留悬挂沙箱。
 
@@ -119,7 +119,7 @@
 { "cmd": "new", "purpose": "构建大镜像", "agent": "Cindy(主)", "dialogue": "<当前对话ID>", "need": "code" }
 ```
 
-然后每 60-90 秒 `cube_log` 一次（避免 worker 空闲回收），日志里会出现 `sandboxID`。超时可 `cube_ls metadata=dialogue=<ID>` 核对是否已创建。
+然后每 60-90 秒 `cube_log` 一次（避免 worker 空闲回收），日志里会出现 `sandboxID`。超时可 `cube_ls metadata=task=<ID>` 核对是否已创建。
 
 ---
 
@@ -209,7 +209,7 @@
 - **`没有可用的 READY 模板：...`**：先 `tpl-ls` 看现有模板，或 `tpl-pick --need=...`。
 - **`sandbox not found`**：实例已被回收（`timeout` 到点）。用 `cube_ls` 确认，必要时重建。
 - **命令超时 / `exitCode 124`**：同步 `cube_exec`/`cube_code` 最长 100 秒，长任务改走 `cube_submit` + `cube_log`。
-- **创建超时/无响应**：沙箱可能已创建，`cube_ls metadata=dialogue=<ID>` 找回后 `cube_rm`；不要盲目重试导致重复沙箱。
+- **创建超时/无响应**：沙箱可能已创建，`cube_ls metadata=task=<ID>` 找回后 `cube_rm`；不要盲目重试导致重复沙箱。
 - **`--env=NAME` 被拒**：插件禁止裸 `--env=NAME`（会从宿主环境读变量，可能把 API Key 送进沙箱），请用 `env` 参数或 `--env=NAME=VALUE`。
 - **`cube_read_file` 返回 `truncated: true`**：文件超过读取上限，调大 `maxBytes`（最大 1 MiB）；更大的文件请用 `cube_run` 的 `get`（下载到插件沙箱）或分段读取。
 - **`cube_write_file` 报 content 过大**：上限 8 MiB，请分片多次调用 `cube_write_file` 追加写入。
