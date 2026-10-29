@@ -53,7 +53,7 @@
       "id": "cube-cli",
       "name": "Cube CLI",
       "description": "CubeSandbox 控制面遥控器：创建、管理沙箱生命周期、端口与文件操作",
-      "version": "0.2.3",
+      "version": "0.2.4",
       "command": "cube",
       "author": "otaku-say",
       "source": "plugins/cube-cli",
@@ -71,54 +71,54 @@
           "os": "macos",
           "arch": "arm64",
           "target": "aarch64-macos",
-          "download_url": "https://github.com/otaku-say/cindy-plugins/releases/download/v0.2.4/cube-cli-0.2.3-macos-arm64.cindy",
-          "sha256": "29972f4bb644247e8cc21cf0c466dedb824acd42922ca96a6c49347bfdb61600",
-          "size": 762810
+          "download_url": "https://github.com/otaku-say/cindy-plugins/releases/download/v0.2.4/cube-cli-0.2.4-macos-arm64.cindy",
+          "sha256": "f072b16b942e3f6027bb955d5041e2b5da71e1c23872c540de959c4512ca99c8",
+          "size": 762642
         },
         "macos-amd64": {
           "platform": "macos-amd64",
           "os": "macos",
           "arch": "amd64",
           "target": "x86_64-macos",
-          "download_url": "https://github.com/otaku-say/cindy-plugins/releases/download/v0.2.4/cube-cli-0.2.3-macos-amd64.cindy",
-          "sha256": "57a3702838f5d65bb0ea00bb0b3cfa9f02025f7cb43d0abb5741d835106f3428",
-          "size": 841565
+          "download_url": "https://github.com/otaku-say/cindy-plugins/releases/download/v0.2.4/cube-cli-0.2.4-macos-amd64.cindy",
+          "sha256": "5009ff255f90435096a05c2c7eac88855126c3982f859c64fbc0f05fefe89252",
+          "size": 841397
         },
         "windows-amd64": {
           "platform": "windows-amd64",
           "os": "windows",
           "arch": "amd64",
           "target": "x86_64-windows-gnu",
-          "download_url": "https://github.com/otaku-say/cindy-plugins/releases/download/v0.2.4/cube-cli-0.2.3-windows-amd64.cindy",
-          "sha256": "844e15e67ac7e355b29beb5c7b4e18cf3e0a0250b3baa3317b8922e788c190b8",
-          "size": 911541
+          "download_url": "https://github.com/otaku-say/cindy-plugins/releases/download/v0.2.4/cube-cli-0.2.4-windows-amd64.cindy",
+          "sha256": "69c2f308cbf972b33c66cec8ff8cdde5e31ad0ac2b8e07244f676eb57df9b187",
+          "size": 911373
         },
         "windows-arm64": {
           "platform": "windows-arm64",
           "os": "windows",
           "arch": "arm64",
           "target": "aarch64-windows-gnu",
-          "download_url": "https://github.com/otaku-say/cindy-plugins/releases/download/v0.2.4/cube-cli-0.2.3-windows-arm64.cindy",
-          "sha256": "1435fb1004da66c363faa3e5775b345475231f142cf6864093c0a770c0adb596",
-          "size": 816103
+          "download_url": "https://github.com/otaku-say/cindy-plugins/releases/download/v0.2.4/cube-cli-0.2.4-windows-arm64.cindy",
+          "sha256": "277423ddeac0ccc31e884273b32d846c2652f86503f9fdb24aac4933b5c786ed",
+          "size": 815935
         },
         "linux-amd64": {
           "platform": "linux-amd64",
           "os": "linux",
           "arch": "amd64",
           "target": "x86_64-linux-musl",
-          "download_url": "https://github.com/otaku-say/cindy-plugins/releases/download/v0.2.4/cube-cli-0.2.3-linux-amd64.cindy",
-          "sha256": "0fc6d4fdbf232e30a900bcb148bff8a77473af8919242f845f526539198bd612",
-          "size": 879260
+          "download_url": "https://github.com/otaku-say/cindy-plugins/releases/download/v0.2.4/cube-cli-0.2.4-linux-amd64.cindy",
+          "sha256": "5005edad0e8c3a7f5d4a6a4f33760d6a0a1f24ba3592364feb5587c82b4f35de",
+          "size": 879092
         },
         "linux-arm64": {
           "platform": "linux-arm64",
           "os": "linux",
           "arch": "arm64",
           "target": "aarch64-linux-musl",
-          "download_url": "https://github.com/otaku-say/cindy-plugins/releases/download/v0.2.4/cube-cli-0.2.3-linux-arm64.cindy",
-          "sha256": "04940a345ba8537fc6f0452d6f3e3e9b7e5fdc6a108abea9a5bd7b7a998f3b3f",
-          "size": 841835
+          "download_url": "https://github.com/otaku-say/cindy-plugins/releases/download/v0.2.4/cube-cli-0.2.4-linux-arm64.cindy",
+          "sha256": "db027733e14cfbb5bbde3867f4d60270a07c85bd9c32707002e2f6442304a863",
+          "size": 841667
         }
       }
     },
