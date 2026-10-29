@@ -1,44 +1,269 @@
 {
   "name": "Aiod CLI",
-  "description": "Remote control for the aiod v2 API inside a CubeSandbox: process execution, file management, browser and MCP.",
-  "whenToUse": "Run commands, manage files, drive the browser, execute code or start an MCP server inside a CubeSandbox.",
+  "description": "Remote control for the aiod v2 API inside a CubeSandbox: process execution, file read/write, browser and MCP. Bundled aiod-cli build includes local fixes for stderr separation, default output limits and lossless ranged reads.",
+  "whenToUse": "Run commands, read or write files, drive the browser, execute code or start an MCP server inside a CubeSandbox.",
   "tools": {
     "aiod_version": {
       "description": "Show aiod-cli version and platform; returns { stdout, stderr, exitCode }."
     },
     "aiod_health": {
-      "description": "Check the in-sandbox aiod service health; returns { stdout, stderr, exitCode }.",
+      "description": "Check the in-sandbox aiod gateway health and version; returns { stdout, stderr, exitCode }.",
       "parameters": {
-        "/properties/base": { "description": "Sandbox gateway URL; defaults to SANDBOX_BASE from settings." }
+        "/properties/base": {
+          "description": "Sandbox gateway URL; defaults to SANDBOX_BASE from settings."
+        }
+      }
+    },
+    "aiod_exec": {
+      "description": "Preferred way to run one command in the sandbox; returns { stdout, stderr, exitCode, stdoutBytes, stderrBytes, stdoutTruncated }. Pass the whole command string as-is and do not escape quotes; output is returned verbatim (trailing whitespace kept). Output is capped by maxOutputBytes (default 256KB); above the cap the upstream keeps head and tail, drops the middle and sets stdoutTruncated=true — redirect to a file (> /root/out.log 2>&1) and page it with aiod_read_file when you need the complete output. Never inline long code or text into the command; use aiod_write_file instead.",
+      "parameters": {
+        "/properties/command": {
+          "description": "Command string executed by the sandbox shell, e.g. \"npm ci && npm run build\"."
+        },
+        "/properties/cwd": {
+          "description": "Working directory, e.g. /root/repo."
+        },
+        "/properties/env": {
+          "description": "Extra environment variables (values must not contain commas). Non-secret config only."
+        },
+        "/properties/shell": {
+          "description": "Shell to use: auto / bash / sh / powershell / cmd / none. Default auto."
+        },
+        "/properties/timeoutSec": {
+          "description": "Sandbox-side hard timeout in seconds; returns exitCode 124 when hit."
+        },
+        "/properties/maxOutputBytes": {
+          "description": "Output cap in bytes, 4KB-1MB (capped at 800KB), default 256KB; above the cap the upstream keeps head and tail, drops the middle and sets stdoutTruncated=true."
+        },
+        "/properties/separateStderr": {
+          "description": "Deprecated compatibility flag: the bundled binary already keeps child stderr separate, so passing it changes nothing (and it no longer wraps the command)."
+        },
+        "/properties/base": {
+          "description": "Gateway URL of a specific sandbox instance."
+        }
       }
     },
     "aiod_run": {
-      "description": "Run an aiod-cli command (exec, files, pty, browser, misc...); returns { stdout, stderr, exitCode }.",
+      "description": "Escape hatch: run any aiod-cli subcommand and return { stdout, stderr, exitCode, stdoutBytes, stderrBytes, stdoutTruncated, stderrTruncated }. Useful subcommands: help / version / health / exec / async / log / code / cat / ls / tree / grep / search / stat / mkdir / rm / cp / mv / edit / put / get / write / fs-tree-put / pty-* / br-* / watch-* / mcp-server. Prefer aiod_exec, aiod_read_file, aiod_write_file, aiod_edit_file, aiod_upload and aiod_download for everyday work. maxOutputBytes only applies to exec/async; total argv over about 32000 characters fails on Windows, so send long content through the file tools.",
       "parameters": {
-        "/properties/cmd": { "description": "Subcommand name, e.g. exec, async, cat, put, get, ls, pty-new, br-go, code, mcp-server." },
-        "/properties/args": { "description": "Arguments for the subcommand." },
-        "/properties/base": { "description": "Gateway URL of a specific sandbox instance." }
+        "/properties/cmd": {
+          "description": "Subcommand name, e.g. exec, code, ls, grep, tree, stat."
+        },
+        "/properties/args": {
+          "description": "Arguments array; valued flags must be written as --key=value."
+        },
+        "/properties/maxOutputBytes": {
+          "description": "Output cap in bytes, 4KB-1MB, default 256KB."
+        },
+        "/properties/base": {
+          "description": "Gateway URL of a specific sandbox instance."
+        }
+      }
+    },
+    "aiod_write_file": {
+      "description": "Write text into a sandbox file. Preferred write path: content never touches argv, so there is no escaping or argv-length trap. path must be absolute (relative paths are rejected) and parent directories are created automatically. Up to 200000 bytes per call; split larger files by repeating with append:true (the first chunk omits append) or use aiod_write_stream for an atomic whole-file write. An empty content string creates or truncates the file to empty. Content is chunked internally at 48KB, the final byte count is verified and overwrite mode also compares SHA256. Returns { path, bytes, chunks, totalBytes, verified, sha256, sha256Match, overwrote, previousBytes }; overwrote=true means a non-empty file was replaced. Use aiod_edit_file for small edits.",
+      "parameters": {
+        "/properties/path": {
+          "description": "Absolute target path inside the sandbox (must start with /), e.g. /root/repo/src/app.py."
+        },
+        "/properties/content": {
+          "description": "Full text content written verbatim, with no newline or escape conversion. Max 200000 bytes per call; an empty string creates or truncates an empty file."
+        },
+        "/properties/append": {
+          "description": "true appends to the end of the file (required from the second chunk onward); default false overwrites, and the response reports overwrote/previousBytes."
+        },
+        "/properties/base": {
+          "description": "Gateway URL of a specific sandbox instance."
+        }
+      }
+    },
+    "aiod_write_stream": {
+      "description": "Atomic large-file write: chunks are buffered locally in the plugin and pushed to the sandbox in one put on final, so a half-written or failed transfer never leaves a partial file. First call {path, content, begin:true} returns an uploadId; continue with {uploadId, content}; finish with {uploadId, content, final:true} or {uploadId, final:true}. Up to 200000 bytes per chunk and 64MB total; the final write verifies the byte count plus both SHA256 values. Use aiod_write_file for anything under 200KB. Note: uploadId lives only in the plugin Node worker memory (30 minute TTL); once the worker is recycled after 120s idle the session and its local buffer are gone, so you must begin again.",
+      "parameters": {
+        "/properties/path": {
+          "description": "Only for the first chunk (begin:true): absolute target path inside the sandbox."
+        },
+        "/properties/content": {
+          "description": "Text of this chunk, at most 200000 bytes (larger chunks are rejected)."
+        },
+        "/properties/begin": {
+          "description": "true starts a new streamed write and returns an uploadId."
+        },
+        "/properties/uploadId": {
+          "description": "uploadId returned by the first chunk; required for every later chunk."
+        },
+        "/properties/final": {
+          "description": "true marks the last chunk and flushes it to the sandbox with verification."
+        },
+        "/properties/base": {
+          "description": "Gateway URL of a specific sandbox instance."
+        }
+      }
+    },
+    "aiod_stat": {
+      "description": "Inspect a sandbox path: returns { path, exists, isDirectory, bytes, lines, endsWithNewline, crlf, sha256 }. Gets existence, size, line count, line-ending style and hash in one call instead of chaining wc -c / wc -l / sha256sum. A missing path returns only { path, exists:false }; a directory returns isDirectory:true with bytes/lines/endsWithNewline/crlf/sha256 as null.",
+      "parameters": {
+        "/properties/path": {
+          "description": "Path inside the sandbox (must start with /)."
+        },
+        "/properties/base": {
+          "description": "Gateway URL of a specific sandbox instance."
+        }
+      }
+    },
+    "aiod_read_file": {
+      "parameters": {
+        "/properties/path": {
+          "description": "Absolute file path inside the sandbox (must start with /, no . or .. segments)."
+        },
+        "/properties/startLine": {
+          "description": "Line mode: 0-based start line; pass the previous page's nextStartLine when paging."
+        },
+        "/properties/startByte": {
+          "description": "Byte mode: 0-based byte offset. When set it wins over startLine and tail; returns nextByteStart. Use it for very long single lines."
+        },
+        "/properties/tail": {
+          "description": "Return only the last N lines (converted to startLine automatically); startByte wins when both are given."
+        },
+        "/properties/maxLines": {
+          "description": "Max lines per page in line mode, 1-2000, default 200."
+        },
+        "/properties/maxBytes": {
+          "description": "Max bytes per page, 1024-200000, default 65536; applies to both modes."
+        },
+        "/properties/allowPartial": {
+          "description": "When a single line exceeds maxBytes, return its prefix plus nextByteStart instead of failing. Default false."
+        },
+        "/properties/exact": {
+          "description": "Force cat --exact: whole-file read plus local slicing so line endings are byte exact (files up to 6MB; each page costs the whole file size). Mixed line endings enable it automatically; above 6MB exact:true errors instead of degrading."
+        },
+        "/properties/base": {
+          "description": "Gateway URL of a specific sandbox instance."
+        }
+      },
+      "description": "Read a sandbox file page by page; concatenating pages reproduces the file byte for byte, including the trailing newline and CRLF. startLine is 0-based. Line mode (default) returns { mode:'line', content, lines, bytes, startLine, nextStartLine, totalLines, totalBytes, crlf, exact, hasMore }; pass startByte for byte mode on very long single lines, which returns nextByteStart and takes precedence over startLine and tail. Follow hasMore with nextStartLine or nextByteStart. Files with mixed line endings switch to cat --exact automatically (whole-file read plus local slicing); above 6MB exact falls back to ranged mode and the response carries a warning (exact:true then errors instead of degrading). A line longer than maxBytes errors with guidance instead of silently dropping bytes. Never cat a potentially large file."
+    },
+    "aiod_edit_file": {
+      "description": "Replace a string in place or insert at a line without re-uploading the file. Replace mode requires both old and new (pass new:\"\" explicitly to delete, since a missing new errors instead of silently deleting); mode defaults to first. For single-line old strings the plugin counts matches first: multiple matches with mode=first error and tell you to pass mode:\"all\" or allowPartialMismatch:true. Insert mode takes insertLine (0-based, validated against the file length by the plugin) plus text; insert and replace cannot be combined. Returns { path, op, mode, exitCode, matched, applied, stdout, stdoutBytes }; stdout is capped at the first 1500 characters of the upstream echo. If the upstream reports an error but the file hash changed, the call returns applied:true plus a note - re-read the file instead of retrying.",
+      "parameters": {
+        "/properties/path": {
+          "description": "Absolute path of the file inside the sandbox (must start with /)."
+        },
+        "/properties/old": {
+          "description": "Exact string to replace; include enough context to make it unique."
+        },
+        "/properties/new": {
+          "description": "Replacement string; to delete the matched text pass an explicit empty string new:\"\" (omitting new errors)."
+        },
+        "/properties/mode": {
+          "description": "Replace scope: first (default) / last / all (global replace, must be explicit)."
+        },
+        "/properties/insertLine": {
+          "description": "Insert mode: line index to insert before (>= 0, 0 means before the first line). When set, old/new are ignored."
+        },
+        "/properties/text": {
+          "description": "Insert mode requires this: the text to insert."
+        },
+        "/properties/allowPartialMismatch": {
+          "description": "With mode=first and a multi-match old string, the call errors by default; pass true to confirm changing only the first match."
+        },
+        "/properties/base": {
+          "description": "Gateway URL of a specific sandbox instance."
+        }
+      }
+    },
+    "aiod_upload": {
+      "description": "Upload a local file into the sandbox (binary safe, auto-chunked above 32MB). The most reliable way to place source files: write the file locally first, then upload. Returns { bytes, remoteBytes, sha256, remoteSha256, sha256Match, verified }; verified false means the SHA256 did not match and you must not continue. Overwrites by default; pass overwrite:false to fail on conflict.",
+      "parameters": {
+        "/properties/localPath": {
+          "description": "Absolute path of the local file, e.g. D:/work/app.py."
+        },
+        "/properties/remotePath": {
+          "description": "Absolute target path inside the sandbox."
+        },
+        "/properties/overwrite": {
+          "description": "Overwrite an existing target, default true; false fails on conflict."
+        },
+        "/properties/base": {
+          "description": "Gateway URL of a specific sandbox instance."
+        }
+      }
+    },
+    "aiod_download": {
+      "description": "Download a sandbox file to this machine (binary safe, chunked). Returns { localPath, bytes, remoteBytes, sha256, remoteSha256, sha256Match, verified }; verified true means both sides hash identically, false means the content differs and must not be used; sha256Match is null when the sandbox has no sha256sum and only the size was checked.An existing local target is deleted before writing (not an atomic overwrite), so never point it at an important file.",
+      "parameters": {
+        "/properties/remotePath": {
+          "description": "Absolute path of the file inside the sandbox."
+        },
+        "/properties/localPath": {
+          "description": "Local destination path, e.g. D:/work/out.tar."
+        },
+        "/properties/base": {
+          "description": "Gateway URL of a specific sandbox instance."
+        }
       }
     },
     "aiod_submit": {
-      "description": "Submit a long-running sandbox task asynchronously; returns { taskId, cmd, status, message }.",
+      "description": "Run a command in the sandbox as a genuinely asynchronous background job (aiod-cli async) and return { taskId, commandId, status } immediately. Output is buffered server-side and the task mapping is persisted on this machine, so the commandId keeps working even after the plugin Node worker is recycled. Read with aiod_log, terminate with aiod_kill. command is the whole command string; never inline long content (write it with aiod_write_file first).",
       "parameters": {
-        "/properties/cmd": { "description": "Subcommand to run asynchronously." },
-        "/properties/args": { "description": "Arguments for the subcommand." },
-        "/properties/base": { "description": "Sandbox gateway URL." }
+        "/properties/command": {
+          "description": "Command string to run in the background; no manual quote escaping needed."
+        },
+        "/properties/cwd": {
+          "description": "Working directory, e.g. /root/repo."
+        },
+        "/properties/env": {
+          "description": "Extra environment variables (values must not contain commas)."
+        },
+        "/properties/shell": {
+          "description": "Shell: auto / bash / sh / powershell / cmd / none. Default auto."
+        },
+        "/properties/timeoutSec": {
+          "description": "Sandbox-side hard timeout in seconds; the task ends as timed_out."
+        },
+        "/properties/base": {
+          "description": "Gateway URL of a specific sandbox instance."
+        },
+        "/properties/cmd": {
+          "description": "Compatibility field: legacy callers put the command in args[0] and pass cmd=\"exec\"; new callers should use command."
+        },
+        "/properties/args": {
+          "description": "Compatibility field: args[0] is used as the command when command is omitted."
+        }
       }
     },
     "aiod_log": {
-      "description": "Read logs of a task submitted by aiod_submit; returns { taskId, status, completed, exitCode, logs, nextOffset, totalLines }.",
+      "description": "Read output from a sandbox background task incrementally; returns { logs, status, completed, exitCode, nextOffset, nextErrOffset, totalLines, gap, truncated }. logs is an array of lines with stdout and stderr merged (use nextOffset/nextErrOffset, or aiod_exec, when the two streams must stay apart) and totalLines is the line count of this batch, not a running total. By default it continues from the last read position (offset can be given explicitly); tail re-reads from 0 and keeps the last N lines; wait:true polls inside the plugin for up to waitTimeoutSec seconds (default 10, max 120). Output lives in the sandbox, so droppedLines is always 0; gap:true means the sandbox already evicted a range of output - redirect the command to a file and page it with aiod_read_file in that case.",
       "parameters": {
-        "/properties/taskId": { "description": "Task ID returned by aiod_submit." },
-        "/properties/offset": { "description": "Line index to start reading from; defaults to the beginning." }
+        "/properties/taskId": {
+          "description": "taskId returned by aiod_submit (same as commandId)."
+        },
+        "/properties/offset": {
+          "description": "Byte offset to read from; defaults to the last read position."
+        },
+        "/properties/tail": {
+          "description": "Return only the last N lines (re-reads from 0 and keeps the tail)."
+        },
+        "/properties/wait": {
+          "description": "When true, wait up to waitTimeoutSec seconds for new output."
+        },
+        "/properties/waitTimeoutSec": {
+          "description": "Maximum seconds to wait when wait is true; default 10, capped at 120. Ignored when wait is false."
+        },
+        "/properties/base": {
+          "description": "Gateway URL of a specific sandbox instance."
+        }
       }
     },
     "aiod_kill": {
-      "description": "Terminate a running async sandbox task; returns { taskId, killed }.",
+      "description": "Terminate the background command actually running inside the sandbox (aiod-cli kill <command_id>); returns { taskId, killed }. Unlike the old behaviour of killing a local waiting process, the sandbox command really stops.",
       "parameters": {
-        "/properties/taskId": { "description": "Task ID to terminate." }
+        "/properties/taskId": {
+          "description": "commandId to terminate (from aiod_submit)."
+        },
+        "/properties/base": {
+          "description": "Gateway URL of a specific sandbox instance."
+        }
       }
     }
   }

@@ -1,44 +1,269 @@
 {
   "name": "Aiod CLI",
-  "description": "CubeSandbox 沙箱内 aiod v2 API 遥控器：进程执行、文件管理、浏览器与 MCP。",
-  "whenToUse": "需要深入 CubeSandbox 沙箱内执行命令、管理文件、遥控浏览器、执行代码或启动 MCP Server 时。",
+  "description": "CubeSandbox 沙箱内 aiod v2 API 遥控器：进程执行、文件读写、浏览器与 MCP。随包 aiod-cli 已包含本地修复（stderr 分离、默认输出上限、无损区间读取）。",
+  "whenToUse": "需要深入 CubeSandbox 沙箱内执行命令、读写文件、遥控浏览器、执行代码或启动 MCP Server 时。",
   "tools": {
     "aiod_version": {
-      "description": "查看 aiod-cli 版本与平台信息；返回 { stdout, stderr, exitCode }。"
+      "description": "查看随包 aiod-cli 的版本与平台信息（含本地修复）；返回 { stdout, stderr, exitCode }。"
     },
     "aiod_health": {
       "description": "检查沙箱内 aiod 服务健康与连通性；返回 { stdout, stderr, exitCode }。",
       "parameters": {
-        "/properties/base": { "description": "沙箱网关地址；不传则用设置中的 SANDBOX_BASE。" }
+        "/properties/base": {
+          "description": "沙箱网关地址；不传则用设置中的 SANDBOX_BASE。"
+        }
+      }
+    },
+    "aiod_exec": {
+      "description": "首选执行工具：在沙箱内跑一条命令，返回 { stdout, stderr, exitCode, stdoutBytes, stderrBytes, stderrMerged, stdoutTruncated, stderrTruncated }。command 传整条命令字符串，不需要自己转义引号；输出原样返回（不裁剪空白）。子进程 stderr 由上游 CLI 原样写到 stderr（stderrMerged=false），两路真正分离；exitCode 是 shell 的退出码，命令尾部接了 `| tail` / `; echo` 之类就会被掩盖，判断成败时别只看它。输出上限 = maxOutputBytes（缺省 256KB），超过时上游会「保留头尾、丢掉中段」，并在 stderr 打印 `aiod-cli: warning: output truncated original_bytes=... returned_bytes=...`，插件同时置 stdoutTruncated=true；需要完整大输出时把命令重定向到文件（> /root/out.log 2>&1）再用 aiod_read_file 分页读。长内容（代码、脚本、正文）不要拼进 command，改用 aiod_write_file。",
+      "parameters": {
+        "/properties/command": {
+          "description": "要执行的命令，整条字符串原样交给沙箱 shell，例如 \"npm ci && npm run build\"。"
+        },
+        "/properties/cwd": {
+          "description": "工作目录，例如 /root/repo。"
+        },
+        "/properties/env": {
+          "description": "附加环境变量对象，值不能含逗号；只用于非敏感配置，密钥请走插件设置。"
+        },
+        "/properties/shell": {
+          "description": "指定 shell：auto / bash / sh / powershell / cmd / none。缺省 auto。"
+        },
+        "/properties/timeoutSec": {
+          "description": "沙箱侧硬超时（秒）。超时返回 exitCode 124。缺省不设。"
+        },
+        "/properties/maxOutputBytes": {
+          "description": "输出上限（字节），4KB–1MB（实际封顶 800KB），缺省 256KB；超限时上游保留头尾丢中段并置 stdoutTruncated=true。"
+        },
+        "/properties/separateStderr": {
+          "description": "已废弃的兼容参数：随包二进制本身已把子进程 stderr 与 stdout 分离，传不传都一样（不再额外包临时文件）。缺省输出上限 256KB，超限时上游在 stderr 打 `aiod-cli: warning: output truncated original_bytes=... returned_bytes=...`，插件置 stdoutTruncated=true。"
+        },
+        "/properties/base": {
+          "description": "指定沙箱实例的网关地址；不传则用设置中的 SANDBOX_BASE。"
+        }
       }
     },
     "aiod_run": {
-      "description": "执行 aiod-cli 命令（exec、files、pty、browser、misc 等）；返回 { stdout, stderr, exitCode }。",
+      "description": "通用兜底：执行任意 aiod-cli 子命令并返回 { stdout, stderr, exitCode, stdoutBytes, stderrBytes, stdoutTruncated, stderrTruncated }。常用子命令：help / version / health / exec / async / log / code / cat / ls / tree / grep / search / stat / mkdir / rm / cp / mv / edit / put / get / write / fs-tree-put / pty-* / br-* / watch-* / mcp-server。日常优先用 aiod_exec / aiod_read_file / aiod_write_file / aiod_edit_file / aiod_upload / aiod_download；只有它们覆盖不到的场景才用本工具。注意 maxOutputBytes 只对 exec/async 生效；argv 总长超过约 32000 字符（Windows）会直接报错，长内容一律走文件类工具。",
       "parameters": {
-        "/properties/cmd": { "description": "子命令名称，如 exec、async、cat、put、get、ls、pty-new、br-go、code、mcp-server。" },
-        "/properties/args": { "description": "传给子命令的参数。" },
-        "/properties/base": { "description": "指定沙箱实例的网关地址。" }
+        "/properties/cmd": {
+          "description": "子命令名称，例如 exec、code、ls、grep、tree、stat。"
+        },
+        "/properties/args": {
+          "description": "子命令参数数组；带值的 flag 一律写成 --key=value。"
+        },
+        "/properties/maxOutputBytes": {
+          "description": "单次输出上限（字节），4KB–1MB，缺省 256KB。"
+        },
+        "/properties/base": {
+          "description": "指定沙箱实例的网关地址。"
+        }
+      }
+    },
+    "aiod_write_file": {
+      "description": "把文本内容写进沙箱文件（首选写入方式，内容不进 argv，因此没有转义和长度陷阱）。path 必须是绝对路径（相对路径会被拒绝），父目录不存在会自动创建。单次 content 上限 200000 字节，超过请分段：首段省略 append，后续段 append:true；content 传空字符串 = 创建/清空空文件。内部按 48KB 自动分片，写完校验总字节，覆盖写还会比对 SHA256；返回 { path, bytes, chunks, totalBytes, verified, sha256, sha256Match, overwrote, previousBytes }，overwrote=true 表示确实覆盖了一个非空文件。总大小超过 200000 字节时用 aiod_write_stream（分段落盘、沙箱里不会出现半截文件）；小改动不要重传整文件，用 aiod_edit_file。",
+      "parameters": {
+        "/properties/path": {
+          "description": "沙箱内目标绝对路径（必须以 / 开头），例如 /root/repo/src/app.py。"
+        },
+        "/properties/content": {
+          "description": "文件完整文本内容，原样写入，不做换行或转义转换。单次 ≤200000 字节；空字符串 = 创建/清空空文件。"
+        },
+        "/properties/append": {
+          "description": "true 时追加到文件末尾（分段写第 2 段起必须为 true）；缺省 false 覆盖，返回的 overwrote/previousBytes 可确认是否真丢了旧内容。"
+        },
+        "/properties/base": {
+          "description": "指定沙箱实例的网关地址。"
+        }
+      }
+    },
+    "aiod_write_stream": {
+      "description": "原子式大文件写入：分多段把内容缓存在插件本地，最后一次 final 时一次性 put 到沙箱——沙箱里不会出现半截文件，中途失败也不会留下脏数据。用法：首段传 {path, content, begin:true} 拿到 uploadId；中间段传 {uploadId, content}；最后一段传 {uploadId, content, final:true}（或单独 {uploadId, final:true}）。单段 ≤200000 字节，累计 ≤64MB；落盘后校验字节数 + 双端 SHA256。总大小不到 200KB 的直接用 aiod_write_file。注意：uploadId 只存在于插件 Node 工作进程内存（30 分钟 TTL）；worker 空闲 120 秒被回收后会话连同本地缓存一起丢失，必须重新 begin。",
+      "parameters": {
+        "/properties/path": {
+          "description": "仅首段（begin:true）需要：沙箱内目标绝对路径。"
+        },
+        "/properties/content": {
+          "description": "本段文本内容，单段 ≤200000 字节（超限会直接报错）。"
+        },
+        "/properties/begin": {
+          "description": "true 表示开始一次新的流式写入，返回 uploadId。"
+        },
+        "/properties/uploadId": {
+          "description": "首段返回的会话 id；后续每段必传。"
+        },
+        "/properties/final": {
+          "description": "true 表示这是最后一段，立即落盘并校验。"
+        },
+        "/properties/base": {
+          "description": "指定沙箱实例的网关地址。"
+        }
+      }
+    },
+    "aiod_stat": {
+      "description": "查看沙箱路径元信息，返回 { path, exists, isDirectory, bytes, lines, endsWithNewline, crlf, sha256 }。存在性/大小/行数/行尾风格/哈希一次拿全，不用再拼 wc -c / wc -l / sha256sum。文件不存在只返回 { path, exists:false }；目录返回 isDirectory:true，bytes/lines/endsWithNewline/crlf/sha256 均为 null。",
+      "parameters": {
+        "/properties/path": {
+          "description": "沙箱内路径（必须以 / 开头）。"
+        },
+        "/properties/base": {
+          "description": "指定沙箱实例的网关地址。"
+        }
+      }
+    },
+    "aiod_read_file": {
+      "description": "按行分页读沙箱文件，逐页拼接与原文逐字节一致（包括末尾换行与 CRLF）。**startLine 从 0 开始**（0 = 文件第一行）；两种模式：默认行模式（startLine/maxLines），返回 { mode:'line', content, lines, bytes, startLine, nextStartLine, totalLines, totalBytes, crlf, exact, hasMore }；传 startByte 进入字节模式（专给超长单行），按 UTF-8 字符边界对齐、不会切出乱码，返回 nextByteStart。hasMore=true 就带着 nextStartLine（或 nextByteStart）读下一页。混合行尾的文件会自动走 cat --exact（整文件读+本地切片）保证精确；文件超过 6MB 时 exact 会自动回退区间模式并在返回里给 warning（此时 exact:true 会直接报错而不是静默降级）。行模式遇到「单行本身超过 maxBytes」会直接报错并指路，绝不静默丢字节。永远不要用 cat 读可能很大的文件。",
+      "parameters": {
+        "/properties/path": {
+          "description": "沙箱内文件绝对路径（必须以 / 开头；不要包含 . 或 .. 段）。"
+        },
+        "/properties/startLine": {
+          "description": "行模式：起始行号（0 起）。翻页时传上一页的 nextStartLine。"
+        },
+        "/properties/startByte": {
+          "description": "字节模式：从第几字节开始读（0 起）。传了就忽略 startLine，返回 nextByteStart；专用于超长单行。"
+        },
+        "/properties/maxLines": {
+          "description": "行模式本页最多行数，1–2000，缺省 200。"
+        },
+        "/properties/tail": {
+          "description": "只看最后 N 行（自动换算 startLine）；传了 startByte 时 startByte 优先。"
+        },
+        "/properties/allowPartial": {
+          "description": "true 时遇到超长单行不报错，而是返回该行前缀 + nextByteStart，便于就地续读。缺省 false。"
+        },
+        "/properties/maxBytes": {
+          "description": "本页最多字节数，1024–200000，缺省 65536；两种模式都生效。"
+        },
+        "/properties/base": {
+          "description": "指定沙箱实例的网关地址。"
+        },
+        "/properties/exact": {
+          "description": "true 时用 cat --exact：整文件读取后本地切片，行尾逐字节精确（文件需 ≤6MB；每页成本为整文件大小）。混合行尾文件会自动启用。"
+        }
+      }
+    },
+    "aiod_edit_file": {
+      "description": "在沙箱文件里做原位替换或按行插入，不重传整个文件。替换模式必须同时给 old 和 new（要删除这段文本请显式传 new:\"\"，不传 new 会报错，避免误删）；mode 缺省 first（只改第一处，返回里会带 hint 提醒你核对），需要全文替换显式传 all，或 last。插入模式传 insertLine（≥0，0 表示插在第 1 行之前）+ text（必填）；插入与替换不能同时传。负数行号、缺 text、模式冲突在插件侧拦住，行号上界由插件按文件行数校验。返回 { path, op, mode, exitCode, applied, matched, stdout, stdoutBytes }（插入模式无 mode/matched）；stdout 只回上游回显的前 1500 字符（大文件回显既耗 token 也可能让上游报 ReadFailed）——若上游报错但文件哈希已变，会返回 applied:true + note，此时先 read_file 核对、不要重试。",
+      "parameters": {
+        "/properties/path": {
+          "description": "沙箱内文件绝对路径（必须以 / 开头）。"
+        },
+        "/properties/old": {
+          "description": "要替换的原字符串，建议包含足够上下文保证唯一。"
+        },
+        "/properties/new": {
+          "description": "替换后的字符串；要删除这段文本必须显式传空字符串 new:\"\"（省略 new 会报错）。"
+        },
+        "/properties/mode": {
+          "description": "替换范围：first（缺省，只改第一处）/ last / all（全文替换，必须显式传）。"
+        },
+        "/properties/allowPartialMismatch": {
+          "description": "mode=first 且 old 命中多处时默认会报错让你确认；确认只改第一处就传 true。"
+        },
+        "/properties/insertLine": {
+          "description": "插入模式：在第几行前插入（≥0 的整数，0 表示插在首行前）。传了它就忽略 old/new。"
+        },
+        "/properties/text": {
+          "description": "插入模式必填：要插入的文本。"
+        },
+        "/properties/base": {
+          "description": "指定沙箱实例的网关地址。"
+        }
+      }
+    },
+    "aiod_upload": {
+      "description": "把本机文件上传到沙箱（二进制安全，>32MB 自动分块）。写代码文件最稳的路径：先用本地文件工具落盘，再本工具上传。返回 { bytes, remoteBytes, sha256, remoteSha256, sha256Match, verified }，verified=true 表示双端 SHA256 一致；verified=false 时不要继续后续步骤。缺省覆盖同名目标，传 overwrite:false 可拒绝覆盖。",
+      "parameters": {
+        "/properties/localPath": {
+          "description": "本机文件绝对路径，例如 D:/work/app.py。"
+        },
+        "/properties/remotePath": {
+          "description": "沙箱内目标绝对路径。"
+        },
+        "/properties/overwrite": {
+          "description": "目标已存在时是否覆盖，缺省 true；传 false 会在冲突时报错。"
+        },
+        "/properties/base": {
+          "description": "指定沙箱实例的网关地址。"
+        }
+      }
+    },
+    "aiod_download": {
+      "description": "把沙箱内文件下载到本机（二进制安全，大文件分块），返回 { localPath, bytes, remoteBytes, sha256, remoteSha256, sha256Match, verified }。verified=true 表示双端 SHA256 一致；false 表示内容不一致，不要当作完整文件使用；远端没有 sha256sum 时 sha256Match 为 null，仅做了长度校验。如果本机目标已存在，会先删除它再写入（不是覆盖写），请勿指向重要文件。",
+      "parameters": {
+        "/properties/remotePath": {
+          "description": "沙箱内文件绝对路径。"
+        },
+        "/properties/localPath": {
+          "description": "本机保存路径，例如 D:/work/out.tar。"
+        },
+        "/properties/base": {
+          "description": "指定沙箱实例的网关地址。"
+        }
       }
     },
     "aiod_submit": {
-      "description": "异步提交沙箱内长任务；返回 { taskId, cmd, status, message }。",
+      "description": "在沙箱后台真正异步执行一条命令（aiod-cli async），立即返回 { taskId, commandId, status }。输出由沙箱服务端缓冲，任务映射持久化在本机临时文件，所以插件 Node 工作进程被回收后仍可用 commandId 继续读/杀。command 传整条命令字符串；长内容不要内联进 command（先 aiod_write_file 落盘再执行）。",
       "parameters": {
-        "/properties/cmd": { "description": "要异步执行的子命令。" },
-        "/properties/args": { "description": "传给子命令的参数。" },
-        "/properties/base": { "description": "沙箱网关地址。" }
+        "/properties/command": {
+          "description": "要在沙箱后台执行的命令，整条字符串，不需要自己转义引号。"
+        },
+        "/properties/cwd": {
+          "description": "工作目录，例如 /root/repo。"
+        },
+        "/properties/env": {
+          "description": "附加环境变量对象，值不能含逗号。"
+        },
+        "/properties/shell": {
+          "description": "shell：auto / bash / sh / powershell / cmd / none。缺省 auto。"
+        },
+        "/properties/timeoutSec": {
+          "description": "沙箱侧硬超时（秒），超时任务状态为 timed_out。"
+        },
+        "/properties/base": {
+          "description": "指定沙箱实例的网关地址。"
+        },
+        "/properties/cmd": {
+          "description": "兼容字段：旧版把命令放在 args[0] 并传 cmd=\"exec\"；新调用请直接用 command。"
+        },
+        "/properties/args": {
+          "description": "兼容字段：args[0] 会被当作 command（仅当未传 command 时生效）。"
+        }
       }
     },
     "aiod_log": {
-      "description": "读取 aiod_submit 提交任务的日志；返回 { taskId, status, completed, exitCode, logs, nextOffset, totalLines }。",
+      "description": "按 commandId 增量读取沙箱后台任务的输出，返回 { logs, status, completed, exitCode, nextOffset, nextErrOffset, totalLines, gap, truncated }。logs 是字符串数组（stdout 与 stderr 合并后按行切分；要分清两路请看 nextOffset/nextErrOffset 并用 aiod_exec 单独跑），totalLines 是本批行数，不是累计行数。默认从上次读到的位置继续（也可显式传 offset）；tail 只看最后 N 行（会从头读再取尾部）；wait:true 时插件侧轮询等待，最多 waitTimeoutSec 秒（缺省 10 秒，上限 120 秒）。输出完整保留在沙箱侧，droppedLines 恒为 0；gap:true 表示沙箱侧已经丢弃过一段输出（服务端上限），此时改用命令自己重定向到文件再分页读。",
       "parameters": {
-        "/properties/taskId": { "description": "aiod_submit 返回的任务 ID。" },
-        "/properties/offset": { "description": "从第几行开始读取，缺省从头。" }
+        "/properties/taskId": {
+          "description": "aiod_submit 返回的 taskId（等同 commandId）。"
+        },
+        "/properties/offset": {
+          "description": "从第几字节开始读；缺省续用上次读到的位置。"
+        },
+        "/properties/tail": {
+          "description": "只看最后 N 行（从 0 重读后取尾部）。"
+        },
+        "/properties/wait": {
+          "description": "true 时等待新输出，最多 waitTimeoutSec 秒。"
+        },
+        "/properties/waitTimeoutSec": {
+          "description": "wait:true 时的最长等待秒数，缺省 10 秒，上限 120 秒；wait 为 false 时无效。"
+        },
+        "/properties/base": {
+          "description": "指定沙箱实例的网关地址。"
+        }
       }
     },
     "aiod_kill": {
-      "description": "终止运行中的沙箱异步任务；返回 { taskId, killed }。",
+      "description": "终止沙箱侧真正在运行的后台命令（aiod-cli kill <command_id>），返回 { taskId, killed }。与旧版只杀本地等待进程不同，沙箱里的命令会真的停下来。",
       "parameters": {
-        "/properties/taskId": { "description": "要终止的任务 ID。" }
+        "/properties/taskId": {
+          "description": "要终止的 commandId（aiod_submit 返回值）。"
+        },
+        "/properties/base": {
+          "description": "指定沙箱实例的网关地址。"
+        }
       }
     }
   }
