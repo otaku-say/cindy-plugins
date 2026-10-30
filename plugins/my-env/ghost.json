@@ -4,7 +4,7 @@
   "name": "My Env",
   "description": "Cross-platform environment variables and secret manager: safely inject credentials into cloud sandboxes, containers and local commands without chat leakage.",
   "whenToUse": "Look up, manage or inject environment variables and credentials into sandboxes, containers or local commands without exposing plaintext in chat.",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "minCindyVersion": "3.0.0",
   "entry": "main.js",
   "command": "env",
@@ -139,7 +139,7 @@
     },
     {
       "name": "env_write_file",
-      "description": "Write explicitly selected variables to a file (dotenv, shell script, or JSON) without exposing plaintext values in chat. keys is required; the file is created 0600, never overwrites by default, refuses symlinks and paths outside the working directory.",
+      "description": "Write explicitly selected variables to a file (dotenv, shell script, or JSON) without exposing plaintext values in chat. keys is required; the file is created 0600, never overwrites by default and refuses symlinks. Relative paths resolve against the plugin worker directory, so the receipt returns the absolute target_path.",
       "parameters": {
         "type": "object",
         "properties": {
@@ -170,10 +170,6 @@
           "file_mode": {
             "type": "string",
             "description": "Octal file permissions on POSIX systems (e.g. '0600' for user read/write only). Defaults to '0600' and is applied at creation time. Ignored on Windows."
-          },
-          "allow_outside_cwd": {
-            "type": "boolean",
-            "description": "Allow writing outside the current working directory. Defaults to false."
           }
         },
         "required": [

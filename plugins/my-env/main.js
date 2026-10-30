@@ -75,8 +75,7 @@ const TOOL_DISPATCH = {
       keys: args.keys,
       format: args.format,
       overwrite: args.overwrite,
-      file_mode: args.file_mode,
-      allow_outside_cwd: args.allow_outside_cwd
+      file_mode: args.file_mode
     }
   }),
   env_exec: (args) => ({

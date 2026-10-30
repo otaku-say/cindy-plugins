@@ -60,7 +60,7 @@
       }
     },
     "env_write_file": {
-      "description": "Write explicitly selected variables to a file (dotenv, shell script, or JSON) without exposing plaintext values in chat. keys is required; the file is created 0600, never overwrites by default, refuses symlinks and paths outside the working directory.",
+      "description": "Write explicitly selected variables to a file (dotenv, shell script, or JSON) without exposing plaintext values in chat. keys is required; the file is created 0600, never overwrites by default and refuses symlinks. Relative paths resolve against the plugin worker directory, so the receipt returns the absolute target_path.",
       "parameters": {
         "/properties/target_path": {
           "description": "Target file path to write (e.g. '.env' or '/var/minis/workspace/.env'); relative paths resolve against the working directory."
@@ -76,9 +76,6 @@
         },
         "/properties/file_mode": {
           "description": "Octal file permissions on POSIX systems (e.g. '0600' for user read/write only). Defaults to '0600' and is applied at creation time. Ignored on Windows."
-        },
-        "/properties/allow_outside_cwd": {
-          "description": "Allow writing outside the current working directory. Defaults to false."
         }
       }
     },

@@ -218,8 +218,7 @@ test('my-env worker provides env_write_file and env_exec with zero plaintext in 
     const writeRes = await call("env/writeFile", {
       target_path: targetFile,
       keys: ["SECRET_TOKEN", "API_ENDPOINT"],
-      format: "dotenv",
-      allow_outside_cwd: true
+      format: "dotenv"
     });
     assert.equal(writeRes.ok, true);
     assert.equal(writeRes.count, 2);

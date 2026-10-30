@@ -60,7 +60,7 @@
       }
     },
     "env_write_file": {
-      "description": "把显式指定的变量写进文件（dotenv / shell / json），对话零明文。keys 必填；文件以 0600 创建、默认不覆盖、拒绝符号链接与工作目录之外的路径。",
+      "description": "把显式指定的变量写进文件（dotenv / shell / json），对话零明文。keys 必填；文件以 0600 创建、默认不覆盖、拒绝符号链接。相对路径按插件 worker 的目录解析，回执会回传绝对路径、可直接交给上传工具。",
       "parameters": {
         "/properties/target_path": {
           "description": "目标文件路径（如 .env 或 /var/minis/workspace/.env），相对路径按工作目录解析。"
@@ -76,9 +76,6 @@
         },
         "/properties/file_mode": {
           "description": "POSIX 权限（八进制，如 0600），默认 0600，创建时即生效；Windows 忽略。"
-        },
-        "/properties/allow_outside_cwd": {
-          "description": "允许写工作目录之外的路径，默认 false。"
         }
       }
     },

@@ -11,7 +11,7 @@ const readline = require('node:readline');
 const ROOT = path.resolve(__dirname, '..');
 const PLUGIN = path.join(ROOT, 'plugins', 'my-env');
 const WORKER = path.join(PLUGIN, 'node', 'worker.cjs');
-const VERSION = '0.3.1';
+const VERSION = '0.3.2';
 
 function startWorker() {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'my-env-v30-'));
@@ -187,11 +187,11 @@ test('v0.3.0 env_writeFile：keys 必填、默认不覆盖、拒绝符号链接'
     }
 
     const outside = path.join(os.tmpdir(), 'my-env-outside-' + Date.now() + '.env');
-    await assert.rejects(
-      w.call('env/writeFile', { target_path: outside, keys: ['SECRET_TOKEN'] }),
-      /工作目录之外/,
-      '默认不得写到工作目录之外'
-    );
+    // 绝对路径（worker cwd 之外）必须可写：worker 的 cwd 不是 Agent 的工作目录
+    const outsideRes = await w.call('env/writeFile', { target_path: outside, keys: ['SECRET_TOKEN'] });
+    assert.equal(outsideRes.ok, true);
+    assert.equal(path.isAbsolute(outsideRes.target_path), true, '回执必须回传绝对路径，供上传工具使用');
+    try { fs.unlinkSync(outside); } catch (_) {}
 
     try { fs.unlinkSync(target); } catch (_) {}
   } finally {
@@ -354,8 +354,6 @@ test('v0.3.0 工具面保持 7 个，参数在 ghost.json / main.js / worker 三
   assert.ok(mainJs.includes('value_from: args.value_from'));
 
   assert.ok(byName.env_write_file.parameters.required.includes('keys'), 'keys 必须必填');
-  assert.ok(byName.env_write_file.parameters.properties.allow_outside_cwd);
-  assert.ok(mainJs.includes('allow_outside_cwd: args.allow_outside_cwd'));
 
   assert.ok(byName.env_exec.parameters.properties.command_line);
   assert.ok(mainJs.includes('command_line: args.command_line'));

@@ -102,7 +102,7 @@
       "id": "my-env",
       "name": "My Env",
       "description": "跨平台环境变量与密钥安全中枢：安全将凭据注入云端沙箱、容器与本地命令，彻底避免对话明文泄露",
-      "version": "0.3.1",
+      "version": "0.3.2",
       "command": "env",
       "author": "otaku-say",
       "tags": [

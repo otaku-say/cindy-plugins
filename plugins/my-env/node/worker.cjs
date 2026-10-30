@@ -654,17 +654,11 @@ const methods = {
       throw new Error('keys 必填：请显式列出要写入的变量，避免把全部凭据一次性落盘');
     }
 
+    /* 不做「必须在 cwd 内」的限制：worker 的 cwd 是宿主应用目录（Windows 上是 Temp），
+     * 不是 Agent 的任务工作目录，按它做白名单只会把正常写入全堵住。安全边界放在：
+     * keys 必填、默认不覆盖、拒绝符号链接、只写普通文件；回执总是回传绝对路径。 */
     const absPath = path.resolve(targetPath);
     const overwrite = params.overwrite === true;
-    const allowOutside = params.allow_outside_cwd === true;
-
-    if (!allowOutside) {
-      const cwd = process.cwd();
-      const rel = path.relative(cwd, absPath);
-      if (rel.startsWith('..') || path.isAbsolute(rel)) {
-        throw new Error(`目标路径在工作目录之外（${absPath}）；确认要写入时请显式传 allow_outside_cwd: true`);
-      }
-    }
 
     if (fs.existsSync(absPath)) {
       const st = fs.lstatSync(absPath);
