@@ -201,7 +201,7 @@
       "id": "my-env",
       "name": "My Env",
       "description": "跨平台环境变量与密钥安全中枢：安全将凭据注入云端沙箱、容器与本地命令，彻底避免对话明文泄露",
-      "version": "0.2.4",
+      "version": "0.3.0",
       "command": "env",
       "author": "otaku-say",
       "source": "plugins/my-env",
@@ -221,54 +221,54 @@
           "os": "macos",
           "arch": "arm64",
           "target": "aarch64-macos",
-          "download_url": "https://github.com/otaku-say/cindy-plugins/releases/download/v0.4.4/my-env-0.2.4-macos-arm64.cindy",
-          "sha256": "682daff24621653002fcc79a136f1bdac8fc64193072bd7a93292c50c8668d9a",
-          "size": 43473
+          "download_url": "https://github.com/otaku-say/cindy-plugins/releases/download/v0.4.4/my-env-0.3.0-macos-arm64.cindy",
+          "sha256": "36e9ab2d55e8328581198dd30ec679cc3d1f8f96bd573c994b245625bcec83ba",
+          "size": 49488
         },
         "macos-amd64": {
           "platform": "macos-amd64",
           "os": "macos",
           "arch": "amd64",
           "target": "x86_64-macos",
-          "download_url": "https://github.com/otaku-say/cindy-plugins/releases/download/v0.4.4/my-env-0.2.4-macos-amd64.cindy",
-          "sha256": "682daff24621653002fcc79a136f1bdac8fc64193072bd7a93292c50c8668d9a",
-          "size": 43473
+          "download_url": "https://github.com/otaku-say/cindy-plugins/releases/download/v0.4.4/my-env-0.3.0-macos-amd64.cindy",
+          "sha256": "36e9ab2d55e8328581198dd30ec679cc3d1f8f96bd573c994b245625bcec83ba",
+          "size": 49488
         },
         "windows-amd64": {
           "platform": "windows-amd64",
           "os": "windows",
           "arch": "amd64",
           "target": "x86_64-windows-gnu",
-          "download_url": "https://github.com/otaku-say/cindy-plugins/releases/download/v0.4.4/my-env-0.2.4-windows-amd64.cindy",
-          "sha256": "682daff24621653002fcc79a136f1bdac8fc64193072bd7a93292c50c8668d9a",
-          "size": 43473
+          "download_url": "https://github.com/otaku-say/cindy-plugins/releases/download/v0.4.4/my-env-0.3.0-windows-amd64.cindy",
+          "sha256": "36e9ab2d55e8328581198dd30ec679cc3d1f8f96bd573c994b245625bcec83ba",
+          "size": 49488
         },
         "windows-arm64": {
           "platform": "windows-arm64",
           "os": "windows",
           "arch": "arm64",
           "target": "aarch64-windows-gnu",
-          "download_url": "https://github.com/otaku-say/cindy-plugins/releases/download/v0.4.4/my-env-0.2.4-windows-arm64.cindy",
-          "sha256": "682daff24621653002fcc79a136f1bdac8fc64193072bd7a93292c50c8668d9a",
-          "size": 43473
+          "download_url": "https://github.com/otaku-say/cindy-plugins/releases/download/v0.4.4/my-env-0.3.0-windows-arm64.cindy",
+          "sha256": "36e9ab2d55e8328581198dd30ec679cc3d1f8f96bd573c994b245625bcec83ba",
+          "size": 49488
         },
         "linux-amd64": {
           "platform": "linux-amd64",
           "os": "linux",
           "arch": "amd64",
           "target": "x86_64-linux-musl",
-          "download_url": "https://github.com/otaku-say/cindy-plugins/releases/download/v0.4.4/my-env-0.2.4-linux-amd64.cindy",
-          "sha256": "682daff24621653002fcc79a136f1bdac8fc64193072bd7a93292c50c8668d9a",
-          "size": 43473
+          "download_url": "https://github.com/otaku-say/cindy-plugins/releases/download/v0.4.4/my-env-0.3.0-linux-amd64.cindy",
+          "sha256": "36e9ab2d55e8328581198dd30ec679cc3d1f8f96bd573c994b245625bcec83ba",
+          "size": 49488
         },
         "linux-arm64": {
           "platform": "linux-arm64",
           "os": "linux",
           "arch": "arm64",
           "target": "aarch64-linux-musl",
-          "download_url": "https://github.com/otaku-say/cindy-plugins/releases/download/v0.4.4/my-env-0.2.4-linux-arm64.cindy",
-          "sha256": "682daff24621653002fcc79a136f1bdac8fc64193072bd7a93292c50c8668d9a",
-          "size": 43473
+          "download_url": "https://github.com/otaku-say/cindy-plugins/releases/download/v0.4.4/my-env-0.3.0-linux-arm64.cindy",
+          "sha256": "36e9ab2d55e8328581198dd30ec679cc3d1f8f96bd573c994b245625bcec83ba",
+          "size": 49488
         }
       }
     },
