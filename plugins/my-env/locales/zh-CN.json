@@ -1,49 +1,58 @@
 {
   "name": "My Env",
-  "description": "跨平台环境变量与密钥安全中枢：安全将凭据注入云端沙箱、容器与本地命令，彻底避免对话明文泄露。",
-  "whenToUse": "在向沙箱、容器或本地命令注入环境变量与凭据之前，查询、安全注入或管理环境变量时使用。",
+  "description": "跨平台环境变量与密钥中枢：把凭据安全注入云端沙箱、容器和本地命令，对话里不出现明文。",
+  "whenToUse": "需要查询、管理环境变量，或把凭据注入沙箱、容器、本地命令而又不想在对话中暴露明文时。",
   "tools": {
     "env_list": {
-      "description": "列出已存变量（脱敏值、备注、更新时间）；返回 { total, items }。敏感项在此处恒为全掩码。",
+      "description": "列出已存变量（值脱敏）及备注与更新时间；返回 { total, returned, offset, limit, hasMore, items }。敏感项在这里永远只显示掩码。",
       "parameters": {
         "/properties/query": {
-          "description": "可选关键词，匹配变量名或备注。"
+          "description": "可选关键词，匹配键名或备注。"
         },
         "/properties/keys": {
-          "description": "只返回这些精确键名（仍为脱敏值），不存在的键在 missing 中列出，用于批量查看。"
+          "description": "只返回这些精确键（仍脱敏）；不存在的键列在 missing。"
+        },
+        "/properties/limit": {
+          "description": "分页大小 1-500，默认 100。变量多时配合 offset 使用。"
+        },
+        "/properties/offset": {
+          "description": "跳过多少条匹配项，默认 0。"
         }
       }
     },
     "env_get": {
-      "description": "返回单个变量的明文值；返回 { key, value, memo, sensitive, updatedAt }。仅当命令确实需要该值时调用，且绝不回传到对话中。",
+      "description": "读取单个变量的明文值；返回 { key, value, memo, sensitive, updatedAt }。仅在命令确实需要值时调用，且不要把值复述回对话。",
       "parameters": {
         "/properties/key": {
-          "description": "变量键名，如 GITHUB_TOKEN。"
+          "description": "变量键名，例如 GITHUB_TOKEN。"
         },
         "/properties/allow_plaintext": {
-          "description": "敏感项默认拒接明文（明文会进入会话记录）；仅第三方接口硬性要求时才传 true。"
+          "description": "敏感项默认拒绝返回明文（明文会落进会话记录）。仅当第三方接口硬性要求原文时才传 true。"
         }
       }
     },
     "env_set": {
-      "description": "新增或更新单个变量；返回 { key, message, maskedValue, sensitive }。",
+      "description": "新增或更新一个变量；返回 { key, message, maskedValue, sensitive, value_source }。优先用 value_from，让密钥不经过工具参数；直接用 value 会把明文留在会话记录里，回执的 warning 会说明。",
       "parameters": {
         "/properties/key": {
-          "description": "变量键名，仅字母、数字与下划线。"
+          "description": "变量键名：仅字母、数字、下划线。"
         },
         "/properties/value": {
-          "description": "要保存的值。"
+          "description": "【已废弃】直接传明文会经过工具参数并留在会话记录里。请改用 value_from，或让用户在设置页填写。"
+        },
+        "/properties/value_from": {
+          "description": "首选取值方式：{ file: /绝对路径 } 读取本机文件内容（末尾换行会被去掉）；{ env: NAME } 复制 worker 进程里已有的环境变量。二选一。"
         },
         "/properties/memo": {
-          "description": "该变量用途的简短备注。"
+          "description": "简短备注，说明这个变量的用途。"
         },
         "/properties/sensitive": {
-          "description": "标记为敏感，列表将展示全掩码。缺省沿用原标记，新键缺省为 true。"
+          "description": "标为敏感项（列表只显示掩码）。默认沿用原值，新键默认 true。"
         }
       }
     },
     "env_delete": {
-      "description": "删除单个变量；返回 { key, deleted }。",
+      "description": "删除一个变量；返回 { key, deleted }。",
       "parameters": {
         "/properties/key": {
           "description": "要删除的变量键名。"
@@ -51,71 +60,89 @@
       }
     },
     "env_write_file": {
-      "description": "安全将指定环境变量写入目标文件（.env、Shell 脚本或 JSON），对话与工具卡片不回传明文。适用于沙箱、容器或本地工作区注入。",
+      "description": "把显式指定的变量写进文件（dotenv / shell / json），对话零明文。keys 必填；文件以 0600 创建、默认不覆盖、拒绝符号链接与工作目录之外的路径。",
       "parameters": {
         "/properties/target_path": {
-          "description": "目标文件路径（例如 '.env'、'/var/minis/workspace/.env' 或 'env.sh'）。"
+          "description": "目标文件路径（如 .env 或 /var/minis/workspace/.env），相对路径按工作目录解析。"
         },
         "/properties/keys": {
-          "description": "可选键名列表。省略或为空则写入全部已存变量。"
+          "description": "【必填】要写入的变量键列表；不存在的键在 missing_keys 里报告。"
         },
         "/properties/format": {
-          "description": "文件格式：'dotenv'（KEY=\"VAL\"）、'shell'（export KEY=\"VAL\"）或 'json'。缺省为 'dotenv'。"
+          "description": "输出格式：dotenv（KEY=\"VAL\"）、shell（export KEY=\"VAL\"）或 json，默认 dotenv。"
         },
         "/properties/overwrite": {
-          "description": "目标文件已存在时是否覆盖。缺省为 true。"
+          "description": "是否覆盖已存在的文件，默认 false。"
         },
         "/properties/file_mode": {
-          "description": "POSIX 系统下的八进制文件权限（如 '0600' 仅所有者读写）。缺省为 '0600'。Windows 自动忽略。"
+          "description": "POSIX 权限（八进制，如 0600），默认 0600，创建时即生效；Windows 忽略。"
+        },
+        "/properties/allow_outside_cwd": {
+          "description": "允许写工作目录之外的路径，默认 false。"
         }
       }
     },
     "env_exec": {
-      "description": "执行本地命令并在进程级直接注入所选环境变量，对话与工具参数中不出现密钥明文。输出会自动脱敏脱敏敏感项。",
+      "description": "在注入了环境变量的进程里执行命令，不向对话暴露明文。输出自动脱敏；超时会杀掉整个进程树并返回已产生的部分输出（timedOut: true）。",
       "parameters": {
         "/properties/command": {
-          "description": "可执行程序或命令名称（如 'npm'、'python'、'git'、'curl'）。"
+          "description": "要执行的程序，例如 npm、python、git、curl。"
         },
         "/properties/args": {
-          "description": "命令参数字符串数组。"
+          "description": "命令行参数数组。"
         },
         "/properties/keys": {
-          "description": "需要注入的环境变量键名列表。省略或为空则注入全部已存变量。"
+          "description": "要注入的变量键；省略则注入全部已存变量。"
         },
         "/properties/cwd": {
-          "description": "命令执行的工作目录。缺省为当前目录。"
+          "description": "执行时的工作目录，默认当前目录。"
         },
         "/properties/timeout_ms": {
-          "description": "执行超时毫秒数（1000–300000）。缺省 30000。宿主单次请求硬上限 120s，因此约 115s 内没有任何输出的命令会被中断；长时间静默任务请放后台执行。"
+          "description": "超时毫秒（1000-110000，默认 30000）。宿主单次 node 请求上限 120000，因此 110000 是支持的最大值；更长任务请放后台。"
         },
         "/properties/shell": {
-          "description": "是否通过平台 shell 执行命令以支持 $VAR / %VAR% 展开，默认 false（Windows 的 .cmd/.bat 自动启用）。"
+          "description": "经由平台 shell 执行，使 $VAR / %VAR% 展开生效。默认 false（Windows 的 .cmd/.bat 自动启用）。实现方式固定为显式 /bin/sh -c 或 cmd.exe /d /s /c，绝不使用 shell:true；含空格的参数会被加引号，使用 command_line 时引号由你负责。"
         },
         "/properties/command_line": {
-          "description": "直接交给 shell 执行的完整命令行，优先于 command+args。需要 shell 语义时用它：引号与转义由调用方负责，插件不会二次转义。"
+          "description": "完整命令行，经 shell 执行；优先于 command+args。需要 shell 语义时用它，引号与转义不会被再次处理。"
+        },
+        "/properties/stdin": {
+          "description": "可选，写入子进程 stdin 的文本（例如 git commit -F - 或喂 CLI 交互）。"
         }
       }
     },
     "env_probe": {
-      "description": "【凭据自检】不取明文地验证已存密钥是否仍然有效：github 模式返回账号、scope 与仓库 push 权限，http 模式返回状态码。绝不回传响应体原文。",
+      "description": "无明文自检凭据：github 检查账号与（给定 repo 时）push 权限，http 只回状态码。keys 必填，响应体永不回传，默认拒绝内网/本机地址。",
       "parameters": {
         "/properties/kind": {
           "description": "探测类型：github 或 http。"
         },
         "/properties/keys": {
-          "description": "要探测的变量键名；省略则探测全部敏感项。"
+          "description": "【必填】要探测的变量键（最多 20 个）。没有“默认全部敏感项”模式，因为探测会把凭据发往目标地址。"
         },
         "/properties/repo": {
-          "description": "github 模式：额外校验 owner/repo 的 push 权限。"
+          "description": "仅 github：额外校验 owner/repo 的 push 权限。"
         },
         "/properties/url": {
-          "description": "http 模式：目标地址（http/https）。"
+          "description": "仅 http：目标 URL（http/https）。默认必须解析到公网地址。"
+        },
+        "/properties/header": {
+          "description": "仅 http：承载 token 的请求头名，默认 Authorization。"
+        },
+        "/properties/header_template": {
+          "description": "仅 http：请求头值模板，含 {token}，默认 Bearer {token}。"
         },
         "/properties/ok_status": {
-          "description": "http 模式：视为健康的状态码，默认 [200]。"
+          "description": "仅 http：视为健康的状态码，默认 [200]。"
         },
         "/properties/timeout_ms": {
-          "description": "单次请求超时毫秒数（1000-60000，默认 15000）。"
+          "description": "单次请求超时毫秒（1000-60000，默认 15000）。"
+        },
+        "/properties/allow_private": {
+          "description": "仅 http：允许访问回环/内网/链路本地地址（本地开发服务），默认 false。"
+        },
+        "/properties/allowed_hosts": {
+          "description": "仅 http：可选的主机名白名单，设置后 url 必须命中其中之一。"
         }
       }
     }

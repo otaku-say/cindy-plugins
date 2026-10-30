@@ -1,19 +1,20 @@
-// plugins/my-env/main.js —— 全局环境变量中枢（调度与通道中继）
-// 架构：
-//   - 随包 Node 进程 (worker.cjs) 负责本地海量持久化与进程/文件级安全注入
-//   - 本沙箱负责工具分发、/kv 镜像同步与设置页 BroadcastChannel 广播中继
+// plugins/my-env/main.js —— 环境变量中枢（调度与设置页通道中继）
+// 架构（v0.3.0）：
+//   - 随包 Node 进程 (worker.cjs) 是唯一数据源：持久化、注入、脱敏都在那里
+//   - 本沙箱只做工具分发与设置页通道中继，不再镜像 /kv
 //   - 敏感项全掩码，对话流中绝不露出明文
+//
+// 历史教训：v0.2.x 每次工具调用都把 /kv 的条目 upsert 进 Node 存储，并且只在
+// value 变化时才更新。结果是"设置页删掉的键会复活、只改 memo 的编辑永不生效"，
+// 而 /kv 里还多存了一份明文。v0.3.0 直接删掉这层镜像，设置页改走下面的通道。
 
-const RESERVED = new Set(['__proto__', 'constructor', 'prototype']);
 const CHANNEL = 'my-env';
 
-// 宿主 cindy.node.request 的硬约束（越界会被整条调用拒收，错误码 INVALID_REQUEST）：
-//   timeoutMs   <= 120000
-//   maxTotalMs  <= 900000 且 >= timeoutMs
-// 因此对外承诺的 timeout_ms 上限(MAX_EXEC_TIMEOUT_MS)不能直接 +5s 丢给宿主。
-const RPC_MAX_TIMEOUT_MS = 120000;
+// 宿主 cindy.node.request 的硬约束（越界会被整条调用拒收）：
+//   timeoutMs <= 120000，maxTotalMs <= 900000 且 >= timeoutMs
+const RPC_MAX_TIMEOUT_MS = 118000;
 const RPC_MAX_TOTAL_MS = 900000;
-const MAX_EXEC_TIMEOUT_MS = 300000;
+const MAX_EXEC_TIMEOUT_MS = 110000;
 
 function rpcBudget(method, params) {
   if (method === 'env/probe') {
@@ -47,45 +48,11 @@ async function callNode(method, params) {
   return res.result;
 }
 
-// 读取当前 /kv 存储，用于与 Node 持久层同步
-async function readKv() {
-  try {
-    const res = await fetch('/kv');
-    if (!res.ok) return null;
-    const data = await res.json();
-    return data && typeof data === 'object' && !Array.isArray(data) ? data : null;
-  } catch (_) {
-    return null;
-  }
-}
-
-// 尝试镜像同步到 /kv（仅当体积 <= 60KB 时；超限则由 Node 本地存储完全接管）
-async function mirrorToKv(variables) {
-  if (!variables || typeof variables !== 'object') return;
-  try {
-    const body = JSON.stringify({ variables });
-    if (body.length > 60 * 1024) return;
-    await fetch('/kv', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body
-    });
-  } catch (_) {
-    /* 忽略 /kv 写入错误，以 Node 磁盘持久化为权威数据源 */
-  }
-}
-
-async function syncFromKv() {
-  const kv = await readKv();
-  if (kv && kv.variables && typeof kv.variables === 'object') {
-    try {
-      await callNode('env/sync', { variables: kv.variables });
-    } catch (_) {}
-  }
-}
-
 const TOOL_DISPATCH = {
-  env_list: (args) => ({ method: 'env/list', params: { query: args.query, keys: args.keys } }),
+  env_list: (args) => ({
+    method: 'env/list',
+    params: { query: args.query, keys: args.keys, limit: args.limit, offset: args.offset }
+  }),
   env_get: (args) => ({
     method: 'env/get',
     params: { key: args.key, allow_plaintext: args.allow_plaintext }
@@ -95,6 +62,7 @@ const TOOL_DISPATCH = {
     params: {
       key: args.key,
       value: args.value,
+      value_from: args.value_from,
       memo: args.memo,
       sensitive: args.sensitive
     }
@@ -107,7 +75,8 @@ const TOOL_DISPATCH = {
       keys: args.keys,
       format: args.format,
       overwrite: args.overwrite,
-      file_mode: args.file_mode
+      file_mode: args.file_mode,
+      allow_outside_cwd: args.allow_outside_cwd
     }
   }),
   env_exec: (args) => ({
@@ -118,11 +87,9 @@ const TOOL_DISPATCH = {
       keys: args.keys,
       cwd: args.cwd,
       timeout_ms: args.timeout_ms,
-      /* v0.2.3：worker 早已实现 shell 语义，但这一层从未透传、schema 也没声明，
-       * 于是手册里「需要 shell 时可显式传 shell: true」的承诺永远无法触达。
-       * 没有它，调用方要用 $VAR 展开就只能把明文值写进命令行参数。 */
       shell: args.shell,
-      command_line: args.command_line
+      command_line: args.command_line,
+      stdin: args.stdin
     }
   }),
   env_probe: (args) => ({
@@ -135,7 +102,9 @@ const TOOL_DISPATCH = {
       header: args.header,
       header_template: args.header_template,
       ok_status: args.ok_status,
-      timeout_ms: args.timeout_ms
+      timeout_ms: args.timeout_ms,
+      allow_private: args.allow_private,
+      allowed_hosts: args.allowed_hosts
     }
   })
 };
@@ -151,20 +120,8 @@ cindy.onHostMessage(async (msg) => {
   }
 
   try {
-    // 调用前确保 /kv 变更已同步入 Node 持久层
-    await syncFromKv();
-
     const req = dispatch(args);
     const result = await callNode(req.method, req.params);
-
-    // 若发生了增删改，自动更新 /kv 镜像
-    if (tool === 'env_set' || tool === 'env_delete') {
-      try {
-        const store = await callNode('env/exportStore');
-        if (store && store.variables) await mirrorToKv(store.variables);
-      } catch (_) {}
-    }
-
     cindy.send({ type: 'tool-result', callId, ok: true, result });
   } catch (err) {
     cindy.send({ type: 'tool-result', callId, ok: false, message: (err && err.message) || String(err) });
@@ -172,26 +129,50 @@ cindy.onHostMessage(async (msg) => {
 });
 
 // ---------------------------------------------------------------------------
-// 设置页面与面板通信通道 (BroadcastChannel)
+// 设置页面通道 (BroadcastChannel)
+// 设置在宿主 cindy-ghost:// 沙箱里，没有 cindy 对象；所有读写都由这里转给 worker，
+// 因此设置页与 Agent 看到的是同一份数据，也不再有 /kv 的第二份明文。
 // ---------------------------------------------------------------------------
+const CHANNEL_OPS = {
+  store: async () => {
+    const [store, stats] = await Promise.all([callNode('env/store'), callNode('env/stats')]);
+    return { variables: store.variables, stats };
+  },
+  stats: () => callNode('env/stats'),
+  set: (data) => callNode('env/set', {
+    key: data.key,
+    value: data.value,
+    memo: data.memo,
+    sensitive: data.sensitive
+  }),
+  delete: (data) => callNode('env/delete', { key: data.key }),
+  import: (data) => callNode('env/import', {
+    variables: data.variables,
+    overwrite: data.overwrite === true
+  })
+};
+
 try {
   const channel = new BroadcastChannel(CHANNEL);
   channel.onmessage = async (event) => {
     const data = event.data;
     if (!data || typeof data.type !== 'string') return;
-
+    const respond = (payload) => {
+      try {
+        channel.postMessage({ id: data.id, ...payload });
+      } catch (_) {}
+    };
+    const op = CHANNEL_OPS[data.type];
+    if (!op) {
+      respond({ ok: false, message: '未知设置页请求: ' + data.type });
+      return;
+    }
     try {
-      if (data.type === 'settings-updated') {
-        await syncFromKv();
-        channel.postMessage({ id: data.id, ok: true });
-      } else if (data.type === 'get-all') {
-        const store = await callNode('env/exportStore');
-        channel.postMessage({ id: data.id, ok: true, variables: store.variables });
-      }
+      respond({ ok: true, ...(await op(data)) });
     } catch (err) {
-      channel.postMessage({ id: data.id, ok: false, message: (err && err.message) || String(err) });
+      respond({ ok: false, message: (err && err.message) || String(err) });
     }
   };
 } catch (_) {
-  /* 宿主环境不支持 BroadcastChannel 时优雅降级 */
+  /* 宿主环境不支持 BroadcastChannel 时优雅降级（设置页会提示后台不可达） */
 }

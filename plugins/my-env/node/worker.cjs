@@ -1,17 +1,46 @@
 // plugins/my-env/node/worker.cjs —— 随包 Node 工作进程 (JSON-RPC 2.0 stdio)
 // 职责：
-//   1. 本地持久化环境变量存储（跨平台无 60KB /kv 上限，存储海量变量）
+//   1. 本地持久化环境变量存储（唯一数据源：设置页与 Agent 都经这里读写）
 //   2. 安全向目标文件写入环境变量（.env / shell / json，对话零明文）
 //   3. 安全执行本地命令（进程级注入 process.env，输出自动脱敏）
+//   4. 无明文凭据自检（只回状态码与账号元数据）
+//
+// v0.3.0 变更要点：
+//   - 存储文件/目录 0600/0700、写前加锁、保留一份 .bak
+//   - 敏感值不再镜像到宿主 /kv（旧版会把全部明文复制进 KV）
+//   - env/set 支持 value_from（file / env），避免明文进对话参数
+//   - env/write_file 的 keys 变必填、默认不覆盖、拒绝软链接与越界路径、创建即 0600
+//   - env/exec 超时杀进程树并回传已产生的输出；shell 模式按平台给参数加引号
+//   - env/probe 的 keys 变必填，默认拒绝内网/回环目标，支持 allowed_hosts 白名单
+//   - 脱敏按长度降序替换并回传命中的键名
 
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
+const dns = require('node:dns');
+const net = require('node:net');
 const { randomUUID } = require('node:crypto');
 const { spawn } = require('node:child_process');
 const readline = require('node:readline');
 
 const RESERVED = new Set(['__proto__', 'constructor', 'prototype']);
+const KEY_RE = /^[A-Za-z_][A-Za-z0-9_]*$/;
+
+const MAX_EXEC_TIMEOUT_MS = 110000; // 宿主单次 RPC 硬上限 120000，留出余量
+const MAX_OUTPUT_BYTES = 256 * 1024;
+const MAX_PROBE_KEYS = 20;
+const LOCK_WAIT_MS = 3000;
+const LOCK_STALE_MS = 10000;
+
+const SLEEP = new Int32Array(new SharedArrayBuffer(4));
+function sleepSync(ms) {
+  try {
+    Atomics.wait(SLEEP, 0, 0, ms);
+  } catch (_) {
+    const end = Date.now() + ms;
+    while (Date.now() < end) { /* 兜底自旋 */ }
+  }
+}
 
 function reply(id, result, error) {
   const resp = { jsonrpc: '2.0', id };
@@ -28,7 +57,7 @@ function log(text) {
 }
 
 // ---------------------------------------------------------------------------
-// 跨平台数据目录发现 (Windows / macOS / Linux)
+// 跨平台数据目录发现 (Windows / macOS / Linux) 与权限
 // ---------------------------------------------------------------------------
 function cindyHomeCandidates() {
   const home = os.homedir();
@@ -57,39 +86,116 @@ function getStorageFile() {
   return path.join(resolveStorageDir(), 'variables.json');
 }
 
+function ensureStorageDir() {
+  const dir = resolveStorageDir();
+  fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
+  if (process.platform !== 'win32') {
+    try {
+      fs.chmodSync(dir, 0o700);
+    } catch (_) {}
+  }
+  return dir;
+}
+
+/* 纵深的原子写：锁 → .bak → 0o600 临时文件 → rename。
+ * 锁是跨进程的（设置页与 Agent 可能同时写），进程内不需要额外互斥。 */
+function withStoreLock(fn) {
+  ensureStorageDir();
+  const lockFile = getStorageFile() + '.lock';
+  const start = Date.now();
+  for (;;) {
+    try {
+      const fd = fs.openSync(lockFile, 'wx', 0o600);
+      fs.closeSync(fd);
+      break;
+    } catch (err) {
+      if (err.code !== 'EEXIST') throw err;
+      try {
+        const st = fs.statSync(lockFile);
+        if (Date.now() - st.mtimeMs > LOCK_STALE_MS) {
+          fs.unlinkSync(lockFile);
+          continue;
+        }
+      } catch (_) {
+        continue;
+      }
+      if (Date.now() - start > LOCK_WAIT_MS) {
+        throw new Error('存储正被另一个进程写入，请稍后重试');
+      }
+      sleepSync(30);
+    }
+  }
+  try {
+    return fn();
+  } finally {
+    try {
+      fs.unlinkSync(lockFile);
+    } catch (_) {}
+  }
+}
+
+function assertStoreFileSafe() {
+  const file = getStorageFile();
+  if (!fs.existsSync(file)) return;
+  const st = fs.lstatSync(file);
+  if (st.isSymbolicLink()) throw new Error('存储文件是符号链接，拒绝写入: ' + file);
+  if (!st.isFile()) throw new Error('存储路径不是普通文件，拒绝写入: ' + file);
+}
+
 function readStore() {
   const file = getStorageFile();
   if (!fs.existsSync(file)) {
-    return { version: 1, variables: {} };
+    return { version: 2, variables: {} };
   }
   try {
     const raw = fs.readFileSync(file, 'utf8');
     const data = JSON.parse(raw);
     if (!data || typeof data !== 'object' || Array.isArray(data)) {
-      return { version: 1, variables: {} };
+      return { version: 2, variables: {} };
     }
     if (!data.variables || typeof data.variables !== 'object' || Array.isArray(data.variables)) {
       data.variables = {};
     }
+    data.version = 2;
     return data;
   } catch (err) {
     log('读取 variables.json 出错，回退为空: ' + err.message);
-    return { version: 1, variables: {} };
+    return { version: 2, variables: {} };
+  }
+}
+
+function writeStoreNow(store) {
+  assertStoreFileSafe();
+  const file = getStorageFile();
+  const dir = ensureStorageDir();
+
+  // 保留一份上一版，误删/误导入可人工回滚
+  if (fs.existsSync(file)) {
+    try {
+      fs.copyFileSync(file, file + '.bak');
+      if (process.platform !== 'win32') fs.chmodSync(file + '.bak', 0o600);
+    } catch (err) {
+      log('备份旧存储失败（继续写入）: ' + err.message);
+    }
+  }
+
+  const tmp = path.join(dir, '.variables.tmp-' + randomUUID());
+  fs.writeFileSync(tmp, JSON.stringify(store, null, 2) + '\n', { encoding: 'utf8', mode: 0o600 });
+  fs.renameSync(tmp, file);
+  if (process.platform !== 'win32') {
+    try {
+      fs.chmodSync(file, 0o600);
+    } catch (_) {}
   }
 }
 
 function saveStore(store) {
-  const dir = resolveStorageDir();
-  fs.mkdirSync(dir, { recursive: true });
-  const file = getStorageFile();
-  const tmp = file + '.tmp-' + randomUUID();
-  fs.writeFileSync(tmp, JSON.stringify(store, null, 2) + '\n', 'utf8');
-  fs.renameSync(tmp, file);
+  withStoreLock(() => writeStoreNow(store));
 }
 
 function assertKey(key) {
   if (!key) throw new Error('key 不能为空');
-  if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(key)) {
+  if (!KEY_RE.test(key)) {
     throw new Error('key 命名不规范（仅字母、数字、下划线，且不能以数字开头）');
   }
   if (RESERVED.has(key)) throw new Error('key 为保留名: ' + key);
@@ -135,26 +241,86 @@ function formatJson(vars) {
   return JSON.stringify(vars, null, 2) + '\n';
 }
 
-/* v0.2.3：脱敏改为返回 { text, hits }，让调用方知道「输出里出现过密钥」，
- * 而不是静默抹掉。命中次数随回执返回，Agent 可据此判断命令是否在回显凭据。 */
-function redactOutput(text, sensitiveList) {
-  if (!text || typeof text !== 'string') return { text: '', hits: 0 };
+/* 脱敏：按长度降序替换，回传命中的键名（只键名，不含值）。
+ * 变长串先替换，避免短串命中后把长串切成 "[REDACTED_SECRET]尾缀" 残片。 */
+function redactOutput(text, entries) {
+  if (!text || typeof text !== 'string') return { text: '', hits: 0, keys: [] };
+  const list = entries
+    .filter((e) => e && typeof e.value === 'string' && e.value.length >= 4)
+    .sort((a, b) => b.value.length - a.value.length);
   let result = text;
   let hits = 0;
-  for (const secret of sensitiveList) {
-    if (secret && typeof secret === 'string' && secret.length >= 4) {
-      const parts = result.split(secret);
-      if (parts.length > 1) {
-        hits += parts.length - 1;
-        result = parts.join('[REDACTED_SECRET]');
-      }
+  const keys = [];
+  for (const entry of list) {
+    const parts = result.split(entry.value);
+    if (parts.length > 1) {
+      hits += parts.length - 1;
+      result = parts.join('[REDACTED_SECRET]');
+      keys.push(entry.key);
     }
   }
-  return { text: result, hits };
+  return { text: result, hits, keys: [...new Set(keys)] };
 }
 
-/* v0.2.3：凭据自检。只回传白名单字段（状态码 / 账号 / 权限 / scope），
- * 绝不回传响应体原文，因此调用方无需拿到明文也能判断「这枚密钥还能不能用」。 */
+function sensitiveEntries(allVars) {
+  return Object.entries(allVars)
+    .filter(([, entry]) => entry && isSensitive(entry) && typeof entry.value === 'string')
+    .map(([key, entry]) => ({ key, value: entry.value }));
+}
+
+// ---------------------------------------------------------------------------
+// 凭据自检（只回白名单字段，绝不回传响应体）
+// ---------------------------------------------------------------------------
+function isPrivateAddress(ip) {
+  const v = net.isIP(ip);
+  if (v === 4) {
+    const p = ip.split('.').map(Number);
+    if (p[0] === 10 || p[0] === 127 || p[0] === 0) return true;
+    if (p[0] === 169 && p[1] === 254) return true;
+    if (p[0] === 172 && p[1] >= 16 && p[1] <= 31) return true;
+    if (p[0] === 192 && p[1] === 168) return true;
+    if (p[0] === 100 && p[1] >= 64 && p[1] <= 127) return true;
+    if (p[0] >= 224) return true;
+    return false;
+  }
+  if (v === 6) {
+    const s = ip.toLowerCase();
+    if (s === '::1' || s === '::') return true;
+    if (s.startsWith('fe80') || s.startsWith('fc') || s.startsWith('fd')) return true;
+    if (s.startsWith('::ffff:')) return isPrivateAddress(s.slice(7));
+    return false;
+  }
+  return false;
+}
+
+async function assertProbeTarget(u, params) {
+  const host = u.hostname.replace(/^\[|\]$/g, '');
+  const allow = Array.isArray(params?.allowed_hosts)
+    ? params.allowed_hosts.map((h) => String(h).trim().toLowerCase()).filter(Boolean)
+    : [];
+  if (allow.length > 0 && !allow.includes(host.toLowerCase())) {
+    throw new Error(`目标主机不在 allowed_hosts 白名单内: ${host}`);
+  }
+  if (params?.allow_private === true) return host;
+
+  let addrs = [];
+  if (net.isIP(host)) {
+    addrs = [host];
+  } else {
+    try {
+      addrs = (await dns.promises.lookup(host, { all: true })).map((a) => a.address);
+    } catch (err) {
+      throw new Error('无法解析目标主机: ' + host);
+    }
+  }
+  for (const addr of addrs) {
+    if (isPrivateAddress(addr)) {
+      throw new Error(`目标解析到内网/本机地址（${addr}），如确需探测请显式传 allow_private: true`);
+    }
+  }
+  return host;
+}
+
 function httpJson(url, headers, timeoutMs) {
   return new Promise((resolve) => {
     let u;
@@ -224,6 +390,13 @@ async function probeGithub(key, token, params, timeoutMs) {
 async function probeHttp(key, token, params, timeoutMs) {
   const url = String(params?.url || '').trim();
   if (!url) return { key, provider: 'http', ok: false, status: 0, error: 'http 模式必须提供 url' };
+  let u;
+  try {
+    u = new URL(url);
+  } catch (_) {
+    return { key, provider: 'http', ok: false, status: 0, error: '非法 URL' };
+  }
+  await assertProbeTarget(u, params);
   const headerName = String(params?.header || 'Authorization').trim() || 'Authorization';
   const template = String(params?.header_template || 'Bearer {token}');
   const headers = { 'User-Agent': 'cindy-my-env-probe' };
@@ -235,11 +408,57 @@ async function probeHttp(key, token, params, timeoutMs) {
   return {
     key,
     provider: 'http',
+    host: u.host,
     ok: expect.includes(r.status),
     status: r.status,
     expected: expect,
     error: r.error || (expect.includes(r.status) ? null : 'HTTP ' + r.status)
   };
+}
+
+// ---------------------------------------------------------------------------
+// env/exec 辅助
+// ---------------------------------------------------------------------------
+/* shell 模式下的参数引用：
+ *   - 含空白/引号/重定向/通配符的参数加引号，避免被拆成多个参数；
+ *   - 不加引号保留 $VAR / %VAR% 展开语义（shell 模式的本意）；
+ *   - 需要完全掌控引号时请直接传 command_line。 */
+function quoteForShell(arg, isWin) {
+  const s = String(arg);
+  if (isWin) {
+    return /[\s"&|<>^()%!]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+  }
+  return /[\s'"&|<>;*?[\]{}#~!]/.test(s) ? "'" + s.replace(/'/g, "'\\''") + "'" : s;
+}
+
+function killTree(proc, isWin) {
+  if (!proc || proc.pid == null) return;
+  if (isWin) {
+    try {
+      const k = spawn('taskkill', ['/pid', String(proc.pid), '/T', '/F'], { windowsHide: true, stdio: 'ignore' });
+      k.on('error', () => {});
+    } catch (_) {
+      try { proc.kill(); } catch (_) {}
+    }
+    return;
+  }
+  const signalGroup = (sig) => {
+    try {
+      process.kill(-proc.pid, sig);
+      return true;
+    } catch (_) {
+      return false;
+    }
+  };
+  if (!signalGroup('SIGTERM')) {
+    try { proc.kill('SIGTERM'); } catch (_) {}
+  }
+  const hard = setTimeout(() => {
+    if (!signalGroup('SIGKILL')) {
+      try { proc.kill('SIGKILL'); } catch (_) {}
+    }
+  }, 2000);
+  if (hard.unref) hard.unref();
 }
 
 // ---------------------------------------------------------------------------
@@ -251,30 +470,39 @@ const methods = {
     const vars = store.variables;
     const q = String(params?.query || '').trim().toLowerCase();
 
-    /* v0.2.4：支持按 keys 精确查看若干键（仍只回脱敏值与元数据）。
-     * env_get 保留不动——它读非敏感配置（API_HOST / MODEL_NAME）时仍然最省事；
-     * 这里只是补上「一次看多条 + 报告缺失键」的能力。 */
     const wantKeys = Array.isArray(params?.keys)
       ? params.keys.map((k) => String(k).trim()).filter(Boolean)
       : [];
     const wanted = wantKeys.length > 0 ? new Set(wantKeys) : null;
     const missing = wanted ? wantKeys.filter((k) => !Object.prototype.hasOwnProperty.call(vars, k)) : [];
 
-    const items = Object.keys(vars)
+    const filtered = Object.keys(vars)
       .filter((k) => (wanted ? wanted.has(k) : true))
       .filter((k) => {
         if (!q) return true;
         return k.toLowerCase().indexOf(q) >= 0 || (vars[k].memo || '').toLowerCase().indexOf(q) >= 0;
       })
-      .sort((a, b) => a.localeCompare(b))
-      .map((k) => ({
+      .sort((a, b) => a.localeCompare(b));
+
+    const limit = Math.min(Math.max(Number(params?.limit) || 100, 1), 500);
+    const offset = Math.max(Number(params?.offset) || 0, 0);
+    const page = filtered.slice(offset, offset + limit);
+
+    return {
+      total: filtered.length,
+      returned: page.length,
+      offset,
+      limit,
+      hasMore: offset + page.length < filtered.length,
+      items: page.map((k) => ({
         key: k,
         maskedValue: maskOf(vars[k]),
         memo: vars[k].memo || '',
         sensitive: isSensitive(vars[k]),
         updatedAt: vars[k].updatedAt || 0
-      }));
-    return { total: items.length, items, missing: missing.length ? missing : undefined };
+      })),
+      missing: missing.length ? missing : undefined
+    };
   },
 
   'env/get': (params) => {
@@ -286,10 +514,8 @@ const methods = {
     }
     const entry = store.variables[key];
 
-    /* v0.2.3 强制约束：敏感项默认绝不返回明文。
-     * 理由：env/get 的返回值会【整条落进 Agent 的对话上下文】。即便 Agent 被叮嘱
-     * 「不要打印」，值也已经进入会话历史并被持久化。历史上两次 GitHub PAT 泄漏
-     * 就是这么发生的。因此默认拒绝，只有显式 allow_plaintext === true 才放行。 */
+    /* 敏感项默认绝不返回明文：返回值会整条落进 Agent 的对话上下文并被持久化。
+     * 历史上两次 GitHub PAT 泄漏就是这么发生的。 */
     if (isSensitive(entry) && params?.allow_plaintext !== true) {
       return {
         key,
@@ -315,19 +541,55 @@ const methods = {
   'env/set': (params) => {
     const key = String(params?.key || '').trim();
     assertKey(key);
-    if (params?.value === undefined || params?.value === null) {
-      throw new Error('缺少必须参数: value');
+
+    /* 值来源优先级：value_from.file > value_from.env > value(inline)。
+     * inline 值会经过 Agent 工具参数进入会话记录，因此回执里带 warning。 */
+    let value;
+    let source = 'inline';
+    const vf = params?.value_from;
+    if (vf && typeof vf === 'object') {
+      if (typeof vf.file === 'string' && vf.file.trim()) {
+        const p = path.resolve(vf.file.trim());
+        try {
+          value = fs.readFileSync(p, 'utf8').replace(/\r?\n$/, '');
+        } catch (err) {
+          throw new Error('读取 value_from.file 失败: ' + p + ' (' + (err.code || err.message) + ')');
+        }
+        source = 'file';
+      } else if (typeof vf.env === 'string' && vf.env.trim()) {
+        const name = vf.env.trim();
+        if (!(name in process.env)) throw new Error('value_from.env 找不到该环境变量: ' + name);
+        value = String(process.env[name]);
+        source = 'env';
+      }
     }
-    const value = String(params.value);
+    if (value === undefined) {
+      if (params?.value === undefined || params?.value === null) {
+        throw new Error('缺少必须参数: value（或 value_from.file / value_from.env）');
+      }
+      value = String(params.value);
+      source = 'inline';
+    }
+
     const store = readStore();
     const vars = store.variables;
     const existing = Object.prototype.hasOwnProperty.call(vars, key) ? vars[key] : null;
-    const sensitive = params.sensitive === undefined
+    const sensitive = params?.sensitive === undefined
       ? (existing ? isSensitive(existing) : true)
       : params.sensitive !== false;
     vars[key] = { value, memo: String(params.memo || '').trim(), sensitive, updatedAt: Date.now() };
     saveStore(store);
-    return { key, message: '已保存 ' + key, maskedValue: maskOf(vars[key]), sensitive };
+
+    return {
+      key,
+      message: (existing ? '已更新 ' : '已保存 ') + key,
+      maskedValue: maskOf(vars[key]),
+      sensitive,
+      value_source: source,
+      warning: source === 'inline'
+        ? '值以明文出现在工具参数中，已进入本次会话记录。下次请用 value_from.file / value_from.env，或让用户在设置页填写。'
+        : undefined
+    };
   },
 
   'env/delete': (params) => {
@@ -342,32 +604,85 @@ const methods = {
     return { key, deleted: true };
   },
 
+  'env/import': (params) => {
+    const incoming = params?.variables;
+    if (!incoming || typeof incoming !== 'object' || Array.isArray(incoming)) {
+      throw new Error('variables 必须是对象');
+    }
+    const overwrite = params?.overwrite === true;
+    const store = readStore();
+    const vars = store.variables;
+    let added = 0;
+    let updated = 0;
+    let skipped = 0;
+    const invalid = [];
+
+    for (const [key, entry] of Object.entries(incoming)) {
+      if (!KEY_RE.test(key) || RESERVED.has(key)) {
+        invalid.push(key);
+        continue;
+      }
+      const raw = typeof entry === 'string' ? { value: entry } : entry;
+      if (!raw || typeof raw !== 'object' || typeof raw.value !== 'string' || raw.value === '') {
+        invalid.push(key);
+        continue;
+      }
+      const exists = Object.prototype.hasOwnProperty.call(vars, key);
+      if (exists && !overwrite) {
+        skipped++;
+        continue;
+      }
+      vars[key] = {
+        value: raw.value,
+        memo: String(raw.memo || '').trim(),
+        sensitive: raw.sensitive !== false,
+        updatedAt: typeof raw.updatedAt === 'number' && isFinite(raw.updatedAt) ? raw.updatedAt : Date.now()
+      };
+      if (exists) updated++;
+      else added++;
+    }
+    if (added + updated > 0) saveStore(store);
+    return { ok: true, added, updated, skipped, invalid };
+  },
+
   'env/writeFile': (params) => {
     const targetPath = String(params?.target_path || '').trim();
     if (!targetPath) throw new Error('缺少必需参数: target_path');
 
-    const absPath = path.resolve(targetPath);
-    const overwrite = params.overwrite !== false;
+    const requestedKeys = Array.isArray(params.keys) ? params.keys.map((k) => String(k).trim()).filter(Boolean) : [];
+    if (requestedKeys.length === 0) {
+      throw new Error('keys 必填：请显式列出要写入的变量，避免把全部凭据一次性落盘');
+    }
 
-    if (!overwrite && fs.existsSync(absPath)) {
-      throw new Error(`目标文件已存在且 overwrite 为 false: ${absPath}`);
+    const absPath = path.resolve(targetPath);
+    const overwrite = params.overwrite === true;
+    const allowOutside = params.allow_outside_cwd === true;
+
+    if (!allowOutside) {
+      const cwd = process.cwd();
+      const rel = path.relative(cwd, absPath);
+      if (rel.startsWith('..') || path.isAbsolute(rel)) {
+        throw new Error(`目标路径在工作目录之外（${absPath}）；确认要写入时请显式传 allow_outside_cwd: true`);
+      }
+    }
+
+    if (fs.existsSync(absPath)) {
+      const st = fs.lstatSync(absPath);
+      if (st.isSymbolicLink()) throw new Error('目标文件是符号链接，拒绝写入: ' + absPath);
+      if (!st.isFile()) throw new Error('目标路径不是普通文件: ' + absPath);
+      if (!overwrite) throw new Error(`目标文件已存在且 overwrite 为 false: ${absPath}`);
     }
 
     const store = readStore();
     const allVars = store.variables;
-    const requestedKeys = Array.isArray(params.keys) ? params.keys.map((k) => String(k).trim()).filter(Boolean) : [];
-
     const varsToWrite = {};
-    if (requestedKeys.length > 0) {
-      for (const k of requestedKeys) {
-        if (Object.prototype.hasOwnProperty.call(allVars, k)) {
-          varsToWrite[k] = allVars[k].value;
-        }
-      }
-    } else {
-      for (const [k, entry] of Object.entries(allVars)) {
-        varsToWrite[k] = entry.value;
-      }
+    const missing = [];
+    for (const k of requestedKeys) {
+      if (Object.prototype.hasOwnProperty.call(allVars, k)) varsToWrite[k] = allVars[k].value;
+      else missing.push(k);
+    }
+    if (Object.keys(varsToWrite).length === 0) {
+      throw new Error('给定的 keys 都不存在: ' + requestedKeys.join(', '));
     }
 
     const format = String(params.format || 'dotenv').toLowerCase();
@@ -382,17 +697,18 @@ const methods = {
       throw new Error(`不支持的格式: ${format}（支持 'dotenv' | 'shell' | 'json'）`);
     }
 
-    fs.mkdirSync(path.dirname(absPath), { recursive: true });
+    const modeStr = String(params.file_mode || '0600');
+    if (!/^[0-7]{3,4}$/.test(modeStr)) throw new Error('file_mode 必须是八进制权限，例如 0600');
+    const mode = parseInt(modeStr, 8);
 
-    // 原子写入
-    const tmp = absPath + '.tmp-' + randomUUID();
-    fs.writeFileSync(tmp, content, 'utf8');
+    fs.mkdirSync(path.dirname(absPath), { recursive: true });
+    // 创建时就带权限，避免"先 0644 再 chmod"露出窗口
+    const tmp = path.join(path.dirname(absPath), '.my-env.tmp-' + randomUUID());
+    fs.writeFileSync(tmp, content, { encoding: 'utf8', mode });
     fs.renameSync(tmp, absPath);
 
-    // POSIX 权限设置（默认 0600，Windows 自动跳过）
     if (process.platform !== 'win32') {
       try {
-        const mode = parseInt(String(params.file_mode || '0600'), 8);
         fs.chmodSync(absPath, mode);
       } catch (_) {}
     }
@@ -400,18 +716,19 @@ const methods = {
     const writtenKeys = Object.keys(varsToWrite);
     log(`writeFile: ${absPath} (${writtenKeys.length} keys, format: ${format})`);
 
-    // 对话与回执中绝不返回明文值，只返回摘要元数据
     return {
       ok: true,
       target_path: absPath,
       written_keys: writtenKeys,
       count: writtenKeys.length,
       format,
-      bytes: Buffer.byteLength(content, 'utf8')
+      bytes: Buffer.byteLength(content, 'utf8'),
+      file_mode: process.platform === 'win32' ? 'acl' : modeStr,
+      missing_keys: missing.length ? missing : undefined
     };
   },
 
-  'env/exec': async (params) => {
+  'env/exec': (params) => {
     const command = String(params?.command || '').trim();
     const commandLine = String(params?.command_line || '').trim();
     if (!command && !commandLine) {
@@ -420,116 +737,134 @@ const methods = {
 
     const args = Array.isArray(params.args) ? params.args.map(String) : [];
     const cwd = params.cwd ? path.resolve(params.cwd) : process.cwd();
-    const timeoutMs = Math.min(Math.max(Number(params.timeout_ms) || 30000, 1000), 300000);
+    const timeoutMs = Math.min(Math.max(Number(params.timeout_ms) || 30000, 1000), MAX_EXEC_TIMEOUT_MS);
+    const stdinText = typeof params?.stdin === 'string' ? params.stdin : null;
 
     const store = readStore();
     const allVars = store.variables;
     const requestedKeys = Array.isArray(params.keys) ? params.keys.map((k) => String(k).trim()).filter(Boolean) : [];
 
     const injectedVars = {};
-    const sensitiveValues = [];
-
-    /* v0.2.3：脱敏清单必须覆盖【全部】敏感项，而不只是本次注入的 keys。
-     * 反例：keys 只传 A 时，若命令读到了 B 并回显，B 会原样躺在 stdout 里。 */
-    for (const entry of Object.values(allVars)) {
-      if (entry && isSensitive(entry) && typeof entry.value === 'string' && entry.value.length >= 4) {
-        sensitiveValues.push(entry.value);
-      }
+    for (const k of requestedKeys) {
+      if (Object.prototype.hasOwnProperty.call(allVars, k)) injectedVars[k] = allVars[k].value;
+    }
+    if (requestedKeys.length === 0) {
+      for (const [k, entry] of Object.entries(allVars)) injectedVars[k] = entry.value;
     }
 
-    if (requestedKeys.length > 0) {
-      for (const k of requestedKeys) {
-        if (Object.prototype.hasOwnProperty.call(allVars, k)) {
-          injectedVars[k] = allVars[k].value;
-        }
-      }
-    } else {
-      for (const [k, entry] of Object.entries(allVars)) {
-        injectedVars[k] = entry.value;
-      }
-    }
-
+    // 脱敏清单覆盖【全部】敏感项，而不只是本次注入的 keys：
+    // 命令可能读到未注入的键（配置文件、其它来源）并回显。
+    const redactList = sensitiveEntries(allVars);
     const env = { ...process.env, ...injectedVars };
+    const isWin = process.platform === 'win32';
+
+    const explicitLine = commandLine ? commandLine : null;
+    const wantShell = typeof params?.shell === 'boolean'
+      ? params.shell
+      : (isWin && /\.(cmd|bat)$/i.test(command));
+    const shellMode = explicitLine !== null || wantShell;
+
+    let spawnCmd = command;
+    let spawnArgs = args;
+    if (shellMode) {
+      const line = explicitLine !== null
+        ? explicitLine
+        : [command].concat(args).map((a) => quoteForShell(a, isWin)).join(' ');
+      if (isWin) {
+        spawnCmd = process.env.ComSpec || 'cmd.exe';
+        spawnArgs = ['/d', '/s', '/c', line];
+      } else {
+        spawnCmd = '/bin/sh';
+        spawnArgs = ['-c', line];
+      }
+    }
 
     return new Promise((resolve, reject) => {
-      let stdout = '';
-      let stderr = '';
-      const MAX_OUTPUT = 256 * 1024;
-      let stdoutTruncated = false;
-      let stderrTruncated = false;
+      let settled = false;
+      let timer = null;
+      const finish = (payload) => {
+        if (settled) return;
+        settled = true;
+        if (timer) clearTimeout(timer);
+        const so = redactOutput(payload.stdout, redactList);
+        const se = redactOutput(payload.stderr, redactList);
+        const hits = so.hits + se.hits;
+        resolve({
+          ok: payload.exitCode === 0 && !payload.timedOut,
+          timedOut: payload.timedOut,
+          exitCode: payload.exitCode === null || payload.exitCode === undefined ? -1 : payload.exitCode,
+          stdout: so.text,
+          stderr: se.text,
+          injected_keys: Object.keys(injectedVars),
+          count: Object.keys(injectedVars).length,
+          redacted_hits: hits,
+          redacted_keys: [...new Set(so.keys.concat(se.keys))],
+          redacted_warning: hits > 0
+            ? '输出中出现过 ' + hits + ' 处敏感值，已替换为 [REDACTED_SECRET]'
+            : null,
+          timeout_ms: timeoutMs
+        });
+      };
 
-      /* v0.2.4：不再使用 spawn(cmd, args, { shell: true })。
-       * 该写法下 Node 把 cmd+args 直接拼接交给 shell、args 完全不做转义，
-       * 因此既抛 DEP0190 弃用警告，又留下命令注入面；而「args 该不该转义」
-       * 在 cmd.exe 与 sh 的规则不同，插件层不可能转对。
-       *
-       * 改为显式包装：自己选 shell、自己拼整行、以 shell:false 交给系统。
-       *   POSIX  : spawn('/bin/sh', ['-c', line])
-       *   Windows: spawn(ComSpec, ['/d', '/s', '/c', line])
-       * 语义与 shell:true 等价，但 shell 选择显式可控，也不再触发弃用警告。
-       *
-       * 另增 command_line 入口：调用方要 shell 语义时直接写整行
-       * （引号与转义由他负责——这正是 shell 的本意），比让插件猜怎么拼更安全。
-       */
-      const isWin = process.platform === 'win32';
-      const explicitLine = typeof params?.command_line === 'string' && params.command_line.trim()
-        ? params.command_line.trim()
-        : null;
-      const wantShell = typeof params?.shell === 'boolean'
-        ? params.shell
-        : (isWin && /\.(cmd|bat)$/i.test(command));
-      const shellMode = explicitLine !== null || wantShell;
-
-      let spawnCmd = command;
-      let spawnArgs = args;
-      if (shellMode) {
-        const line = explicitLine !== null ? explicitLine : [command].concat(args).join(' ');
-        if (isWin) {
-          spawnCmd = process.env.ComSpec || 'cmd.exe';
-          spawnArgs = ['/d', '/s', '/c', line];
-        } else {
-          spawnCmd = '/bin/sh';
-          spawnArgs = ['-c', line];
-        }
+      let proc;
+      try {
+        proc = spawn(spawnCmd, spawnArgs, {
+          cwd,
+          env,
+          shell: false,
+          detached: !isWin,
+          windowsHide: true,
+          stdio: [stdinText === null ? 'ignore' : 'pipe', 'pipe', 'pipe']
+        });
+      } catch (err) {
+        reject(err);
+        return;
       }
 
-      const proc = spawn(spawnCmd, spawnArgs, {
-        cwd,
-        env,
-        shell: false,
-        stdio: ['ignore', 'pipe', 'pipe']
-      });
+      const outChunks = [];
+      const errChunks = [];
+      const outState = { bytes: 0, truncated: false };
+      const errState = { bytes: 0, truncated: false };
 
-      const timer = setTimeout(() => {
-        try { proc.kill('SIGTERM'); } catch (_) {}
-        reject(new Error(`命令执行超时 (${timeoutMs}ms): ${command}`));
+      const collect = (chunks, chunk, state) => {
+        const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(String(chunk), 'utf8');
+        if (state.bytes >= MAX_OUTPUT_BYTES) {
+          state.truncated = true;
+          return;
+        }
+        const room = MAX_OUTPUT_BYTES - state.bytes;
+        chunks.push(buf.subarray(0, room));
+        state.bytes += Math.min(buf.length, room);
+        if (buf.length > room) state.truncated = true;
+      };
+
+      timer = setTimeout(() => {
+        killTree(proc, isWin);
+        finish({
+          timedOut: true,
+          exitCode: null,
+          stdout: Buffer.concat(outChunks).toString('utf8') + '\n[... 超时前输出 ...]',
+          stderr: Buffer.concat(errChunks).toString('utf8')
+        });
       }, timeoutMs);
 
-      proc.stdout.on('data', (chunk) => {
-        if (stdout.length < MAX_OUTPUT) {
-          stdout += chunk.toString('utf8');
-        } else if (!stdoutTruncated) {
-          stdout += '\n[... stdout truncated at 256KB ...]';
-          stdoutTruncated = true;
-        }
-      });
+      if (proc.stdin && stdinText !== null) {
+        proc.stdin.on('error', () => {});
+        try {
+          proc.stdin.end(stdinText);
+        } catch (_) {}
+      }
 
-      proc.stderr.on('data', (chunk) => {
-        if (stderr.length < MAX_OUTPUT) {
-          stderr += chunk.toString('utf8');
-        } else if (!stderrTruncated) {
-          stderr += '\n[... stderr truncated at 256KB ...]';
-          stderrTruncated = true;
-        }
-      });
+      proc.stdout.on('data', (chunk) => collect(outChunks, chunk, outState));
+      proc.stderr.on('data', (chunk) => collect(errChunks, chunk, errState));
 
       proc.on('error', (err) => {
-        clearTimeout(timer);
-        // ENOENT 是最常见的误用：command 不在这台机器的 PATH 里（例如 Windows 上没有
-        // bash / grep）。原始 "spawn bash ENOENT" 对调用方毫无指引，这里补上可用做法。
+        if (settled) return;
+        settled = true;
+        if (timer) clearTimeout(timer);
         if (err && err.code === 'ENOENT') {
           const hint = isWin
-            ? "该命令不在 PATH 中。Windows 可改用 cmd、powershell、node，或写完整路径（如 C:\Program Files\Git\bin\bash.exe）。"
+            ? "该命令不在 PATH 中。Windows 可改用 cmd、powershell、node，或写完整路径（如 C:\\Program Files\\Git\\bin\\bash.exe）。"
             : '该命令不在 PATH 中，请检查是否已安装，或改用绝对路径。';
           reject(new Error(`无法启动命令 "${command}"：${hint}`));
           return;
@@ -538,23 +873,12 @@ const methods = {
       });
 
       proc.on('close', (exitCode) => {
-        clearTimeout(timer);
-        // 对输出中的敏感密钥执行掩码过滤
-        const so = redactOutput(stdout, sensitiveValues);
-        const se = redactOutput(stderr, sensitiveValues);
-        const redactedHits = so.hits + se.hits;
-
-        resolve({
-          ok: exitCode === 0,
-          exitCode: exitCode ?? -1,
-          stdout: so.text,
-          stderr: se.text,
-          injected_keys: Object.keys(injectedVars),
-          count: Object.keys(injectedVars).length,
-          redacted_hits: redactedHits,
-          redacted_warning: redactedHits > 0
-            ? '输出中出现过 ' + redactedHits + ' 处敏感值，已替换为 [REDACTED_SECRET]'
-            : null
+        const tail = (truncated) => truncated ? '\n[... 输出超过 256KB，已截断 ...]' : '';
+        finish({
+          timedOut: false,
+          exitCode,
+          stdout: Buffer.concat(outChunks).toString('utf8') + tail(outState.truncated),
+          stderr: Buffer.concat(errChunks).toString('utf8') + tail(errState.truncated)
         });
       });
     });
@@ -570,13 +894,13 @@ const methods = {
     const allVars = store.variables;
 
     const requested = Array.isArray(params?.keys) ? params.keys.map((k) => String(k).trim()).filter(Boolean) : [];
-    const keys = requested.length > 0
-      ? requested
-      : Object.keys(allVars).filter((k) => isSensitive(allVars[k]));
-
-    if (keys.length === 0) {
-      return { ok: false, kind, count: 0, checks: [], note: '没有可探测的变量：请传 keys，或先 env_set 写入敏感项' };
+    if (requested.length === 0) {
+      throw new Error('keys 必填：探测会把凭据发送到目标地址，禁止隐式使用全部敏感项');
     }
+    if (requested.length > MAX_PROBE_KEYS) {
+      throw new Error(`一次最多探测 ${MAX_PROBE_KEYS} 个键，请分批`);
+    }
+    const keys = requested;
 
     const checks = [];
     for (const key of keys) {
@@ -595,39 +919,37 @@ const methods = {
           ? await probeGithub(key, token, params, timeoutMs)
           : await probeHttp(key, token, params, timeoutMs));
       } catch (e) {
-        checks.push({ key, ok: false, status: 0, error: String((e && e.message) || e).slice(0, 160) });
+        checks.push({ key, ok: false, status: 0, error: String((e && e.message) || e).slice(0, 200) });
       }
     }
     return { ok: checks.every((c) => c.ok), kind, count: checks.length, checks };
   },
 
-  'env/sync': (params) => {
-    const incoming = params?.variables;
-    if (!incoming || typeof incoming !== 'object' || Array.isArray(incoming)) {
-      return { ok: true, synced: false };
-    }
-    const store = readStore();
-    let changed = false;
-    for (const [k, v] of Object.entries(incoming)) {
-      if (RESERVED.has(k) || !/^[A-Za-z_][A-Za-z0-9_]*$/.test(k)) continue;
-      if (!v || typeof v !== 'object') continue;
-      if (!Object.prototype.hasOwnProperty.call(store.variables, k) || store.variables[k].value !== v.value) {
-        store.variables[k] = {
-          value: String(v.value ?? ''),
-          memo: String(v.memo || ''),
-          sensitive: v.sensitive !== false,
-          updatedAt: v.updatedAt || Date.now()
-        };
-        changed = true;
-      }
-    }
-    if (changed) saveStore(store);
-    return { ok: true, count: Object.keys(store.variables).length };
-  },
-
-  'env/exportStore': () => {
+  /* 设置页通道：整包读取（含明文，仅供本机 UI 显示与编辑） */
+  'env/store': () => {
     const store = readStore();
     return { ok: true, variables: store.variables };
+  },
+
+  'env/stats': () => {
+    const file = getStorageFile();
+    let bytes = 0;
+    let mode = null;
+    try {
+      const st = fs.statSync(file);
+      bytes = st.size;
+      mode = process.platform === 'win32' ? 'acl' : '0' + (st.mode & 0o777).toString(8);
+    } catch (_) {}
+    const store = readStore();
+    const entries = Object.values(store.variables);
+    return {
+      ok: true,
+      path: file,
+      bytes,
+      mode,
+      count: entries.length,
+      sensitive_count: entries.filter(isSensitive).length
+    };
   }
 };
 

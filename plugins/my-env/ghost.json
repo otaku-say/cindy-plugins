@@ -4,7 +4,7 @@
   "name": "My Env",
   "description": "Cross-platform environment variables and secret manager: safely inject credentials into cloud sandboxes, containers and local commands without chat leakage.",
   "whenToUse": "Look up, manage or inject environment variables and credentials into sandboxes, containers or local commands without exposing plaintext in chat.",
-  "version": "0.2.4",
+  "version": "0.3.0",
   "minCindyVersion": "3.0.0",
   "entry": "main.js",
   "command": "env",
@@ -27,13 +27,13 @@
     "entry": "node/worker.cjs",
     "protocol": "json-rpc-stdio",
     "lifecycle": "on-demand",
-    "idleTimeoutSeconds": 120
+    "idleTimeoutSeconds": 600
   },
   "launch": "resident",
   "tools": [
     {
       "name": "env_list",
-      "description": "List stored variables with masked values, memo and updatedAt; returns { total, items }. Sensitive entries are always fully masked here.",
+      "description": "List stored variables with masked values, memo and updatedAt; returns { total, returned, offset, limit, hasMore, items }. Sensitive entries are always fully masked here.",
       "parameters": {
         "type": "object",
         "properties": {
@@ -47,6 +47,14 @@
               "type": "string"
             },
             "description": "Return only these exact keys (still masked); unknown keys are listed in 'missing'. Complements env_get for batch lookups."
+          },
+          "limit": {
+            "type": "integer",
+            "description": "Page size 1-500, default 100. Use with offset for large stores."
+          },
+          "offset": {
+            "type": "integer",
+            "description": "Number of matching entries to skip, default 0."
           }
         }
       }
@@ -73,7 +81,7 @@
     },
     {
       "name": "env_set",
-      "description": "Create or update one variable; returns { key, message, maskedValue, sensitive }.",
+      "description": "Create or update one variable; returns { key, message, maskedValue, sensitive, value_source }. Prefer value_from so the secret never travels through tool arguments; a plain 'value' is recorded in the chat transcript and the response says so in 'warning'.",
       "parameters": {
         "type": "object",
         "properties": {
@@ -83,7 +91,21 @@
           },
           "value": {
             "type": "string",
-            "description": "Value to store."
+            "description": "DEPRECATED for secrets: an inline value passes through the tool call and is persisted in the chat transcript. Use value_from, or have the user enter it in the settings page."
+          },
+          "value_from": {
+            "type": "object",
+            "description": "Preferred source for the value. { file: '/abs/path' } reads the first line-safe content of a local file (a trailing newline is trimmed); { env: 'NAME' } copies the worker process environment variable NAME. Exactly one of file/env.",
+            "properties": {
+              "file": {
+                "type": "string",
+                "description": "Absolute path of a local file whose content becomes the value."
+              },
+              "env": {
+                "type": "string",
+                "description": "Name of an environment variable already visible to the plugin worker."
+              }
+            }
           },
           "memo": {
             "type": "string",
@@ -95,8 +117,7 @@
           }
         },
         "required": [
-          "key",
-          "value"
+          "key"
         ]
       }
     },
@@ -118,20 +139,20 @@
     },
     {
       "name": "env_write_file",
-      "description": "Safely write selected environment variables to a file (dotenv, shell script, or JSON) without exposing plaintext values in chat. Safe for injecting into sandboxes, containers, or local workspaces.",
+      "description": "Write explicitly selected variables to a file (dotenv, shell script, or JSON) without exposing plaintext values in chat. keys is required; the file is created 0600, never overwrites by default, refuses symlinks and paths outside the working directory.",
       "parameters": {
         "type": "object",
         "properties": {
           "target_path": {
             "type": "string",
-            "description": "Target file path to write (e.g. '.env', '/var/minis/workspace/.env', or 'env.sh')."
+            "description": "Target file path to write (e.g. '.env' or '/var/minis/workspace/.env'); relative paths resolve against the working directory."
           },
           "keys": {
             "type": "array",
             "items": {
               "type": "string"
             },
-            "description": "Optional list of variable keys to include. Omit or leave empty to write all stored variables."
+            "description": "REQUIRED list of variable keys to include. Unknown keys are reported in 'missing_keys'."
           },
           "format": {
             "type": "string",
@@ -144,21 +165,26 @@
           },
           "overwrite": {
             "type": "boolean",
-            "description": "Whether to overwrite the file if it already exists. Defaults to true."
+            "description": "Whether to overwrite an existing file. Defaults to false."
           },
           "file_mode": {
             "type": "string",
-            "description": "Octal file permissions on POSIX systems (e.g. '0600' for user read/write only). Defaults to '0600'. Ignored on Windows."
+            "description": "Octal file permissions on POSIX systems (e.g. '0600' for user read/write only). Defaults to '0600' and is applied at creation time. Ignored on Windows."
+          },
+          "allow_outside_cwd": {
+            "type": "boolean",
+            "description": "Allow writing outside the current working directory. Defaults to false."
           }
         },
         "required": [
-          "target_path"
+          "target_path",
+          "keys"
         ]
       }
     },
     {
       "name": "env_exec",
-      "description": "Execute a command with selected environment variables injected into the process environment, without exposing secrets in chat. Output is automatically sanitized to mask sensitive values.",
+      "description": "Execute a command with selected environment variables injected into the process environment, without exposing secrets in chat. Output is automatically sanitized to mask sensitive values; on timeout the process tree is killed and the partial output is returned with timedOut: true.",
       "parameters": {
         "type": "object",
         "properties": {
@@ -186,22 +212,26 @@
           },
           "timeout_ms": {
             "type": "integer",
-            "description": "Execution timeout in ms (1000-300000, default 30000). The host caps a single node request at 120000 ms, so a command that produces no output for ~115 s is interrupted; use a background job for longer silent work."
+            "description": "Execution timeout in ms (1000-110000, default 30000). The host caps a single node request at 120000 ms, so 110000 is the supported maximum; use a background job for longer silent work."
           },
           "shell": {
             "type": "boolean",
-            "description": "Run through the platform shell so $VAR / %VAR% expansion works. Default false (auto-enabled for .cmd/.bat on Windows). Implemented as an explicit '/bin/sh -c' or 'cmd.exe /d /s /c' wrapper, never Node's shell:true."
+            "description": "Run through the platform shell so $VAR / %VAR% expansion works. Default false (auto-enabled for .cmd/.bat on Windows). Implemented as an explicit '/bin/sh -c' or 'cmd.exe /d /s /c' wrapper, never Node's shell:true; arguments containing spaces are quoted, and you own quoting when using command_line."
           },
           "command_line": {
             "type": "string",
             "description": "Full command line executed through the shell; takes precedence over command+args. Prefer this when you need shell semantics: you own the quoting, so nothing is silently re-escaped."
+          },
+          "stdin": {
+            "type": "string",
+            "description": "Optional text piped to the child process stdin (for example 'git commit -F -' or feeding a CLI prompt)."
           }
         }
       }
     },
     {
       "name": "env_probe",
-      "description": "Probe stored credentials for validity without ever returning their plaintext. 'github' checks api.github.com/user (plus repo push permission when repo is given); 'http' sends one request to url. Response bodies are never echoed back.",
+      "description": "Probe stored credentials for validity without ever returning their plaintext. 'github' checks api.github.com/user (plus repo push permission when repo is given); 'http' sends one GET request to url. keys is required, response bodies are never echoed back, and private/loopback targets are refused unless allow_private is true.",
       "parameters": {
         "type": "object",
         "properties": {
@@ -218,7 +248,7 @@
             "items": {
               "type": "string"
             },
-            "description": "Variable keys to probe. Omit to probe every stored sensitive key."
+            "description": "REQUIRED variable keys to probe (max 20). There is no implicit 'all sensitive keys' mode, because probing sends the credential to a target."
           },
           "repo": {
             "type": "string",
@@ -226,7 +256,7 @@
           },
           "url": {
             "type": "string",
-            "description": "HTTP only: target URL (http/https)."
+            "description": "HTTP only: target URL (http/https). Must resolve to a public address unless allow_private is true."
           },
           "header": {
             "type": "string",
@@ -246,8 +276,23 @@
           "timeout_ms": {
             "type": "integer",
             "description": "Per-request timeout in ms (1000-60000, default 15000)."
+          },
+          "allow_private": {
+            "type": "boolean",
+            "description": "HTTP only: allow targeting loopback/private/link-local addresses (local dev servers). Defaults to false."
+          },
+          "allowed_hosts": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "HTTP only: optional exact hostname allowlist; when set, url must match one of these hosts."
           }
-        }
+        },
+        "required": [
+          "kind",
+          "keys"
+        ]
       }
     }
   ]

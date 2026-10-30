@@ -119,9 +119,9 @@ test('locales only reference fields declared in the manifest', () => {
 test('my-env keeps no bulk plaintext export and guards reserved keys', () => {
   const ghost = JSON.parse(fs.readFileSync(path.join(ROOT, 'plugins', 'my-env', 'ghost.json'), 'utf-8'));
   assert.ok(!ghost.tools.some((t) => t.name === 'env_dump_for_sandbox'), 'bulk export tool must stay removed');
-  const mainJs = fs.readFileSync(path.join(ROOT, 'plugins', 'my-env', 'main.js'), 'utf-8');
+  const workerSrc = fs.readFileSync(path.join(ROOT, 'plugins', 'my-env', 'node', 'worker.cjs'), 'utf-8');
   for (const name of ['__proto__', 'constructor', 'prototype']) {
-    assert.ok(mainJs.includes(name), `main.js must guard reserved key ${name}`);
+    assert.ok(workerSrc.includes(name), `worker must guard reserved key ${name}`);
   }
 
   // 导出/导入只允许出现在设置页（用户手动触发），且导入同样要挡保留键
@@ -174,23 +174,24 @@ test('文档里不再出现已废弃的架构专属分支地址', () => {
 });
 
 test('my-env worker provides env_write_file and env_exec with zero plaintext in results and output redaction', async () => {
-  const { spawn } = require('node:child_process');
-  const os = require('node:os');
-  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'my-env-test-'));
-  const workerFile = path.join(ROOT, 'plugins', 'my-env', 'node', 'worker.cjs');
+  const { spawn } = require("node:child_process");
+  const os = require("node:os");
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "my-env-test-"));
+  const workerFile = path.join(ROOT, "plugins", "my-env", "node", "worker.cjs");
+  const SECRET = "test-secret-" + Date.now();
 
-  const proc = spawn('node', [workerFile], {
+  const proc = spawn("node", [workerFile], {
     env: { ...process.env, CINDY_HOME: tmpDir },
-    stdio: ['pipe', 'pipe', 'inherit']
+    stdio: ["pipe", "pipe", "inherit"]
   });
 
-  const readline = require('node:readline');
+  const readline = require("node:readline");
   const rl = readline.createInterface({ input: proc.stdout });
 
   const pending = new Map();
   let reqSeq = 1;
 
-  rl.on('line', (line) => {
+  rl.on("line", (line) => {
     if (!line.trim()) return;
     const msg = JSON.parse(line);
     if (pending.has(msg.id)) {
@@ -205,34 +206,42 @@ test('my-env worker provides env_write_file and env_exec with zero plaintext in 
     const id = reqSeq++;
     return new Promise((resolve, reject) => {
       pending.set(id, { resolve, reject });
-      proc.stdin.write(JSON.stringify({ jsonrpc: '2.0', id, method, params }) + '\n');
+      proc.stdin.write(JSON.stringify({ jsonrpc: "2.0", id, method, params }) + "\n");
     });
   }
 
   try {
-    await call('env/set', { key: 'SECRET_TOKEN', value: 'wldkvf-02847-prm', sensitive: true });
-    await call('env/set', { key: 'API_ENDPOINT', value: 'https://api.example.com', sensitive: false });
+    await call("env/set", { key: "SECRET_TOKEN", value: SECRET, sensitive: true });
+    await call("env/set", { key: "API_ENDPOINT", value: "https://api.example.com", sensitive: false });
 
-    const targetFile = path.join(tmpDir, 'project', '.env');
-    const writeRes = await call('env/writeFile', { target_path: targetFile, format: 'dotenv' });
+    const targetFile = path.join(tmpDir, "project", ".env");
+    const writeRes = await call("env/writeFile", {
+      target_path: targetFile,
+      keys: ["SECRET_TOKEN", "API_ENDPOINT"],
+      format: "dotenv",
+      allow_outside_cwd: true
+    });
     assert.equal(writeRes.ok, true);
     assert.equal(writeRes.count, 2);
-    assert.deepEqual(writeRes.written_keys.sort(), ['API_ENDPOINT', 'SECRET_TOKEN']);
-    assert.equal(JSON.stringify(writeRes).includes('wldkvf-02847-prm'), false);
+    assert.deepEqual(writeRes.written_keys.sort(), ["API_ENDPOINT", "SECRET_TOKEN"]);
+    assert.equal(JSON.stringify(writeRes).includes(SECRET), false);
 
-    const onDisk = fs.readFileSync(targetFile, 'utf8');
-    assert.ok(onDisk.includes('SECRET_TOKEN="wldkvf-02847-prm"'));
+    const onDisk = fs.readFileSync(targetFile, "utf8");
+    assert.ok(onDisk.includes('SECRET_TOKEN="' + SECRET + '"'));
     assert.ok(onDisk.includes('API_ENDPOINT="https://api.example.com"'));
+    if (process.platform !== "win32") {
+      assert.equal(fs.statSync(targetFile).mode & 0o777, 0o600, "dotenv 文件必须是 0600");
+    }
 
-    const execRes = await call('env/exec', {
-      command: 'node',
-      args: ['-e', 'console.log("RESULT:" + process.env.SECRET_TOKEN + " " + process.env.API_ENDPOINT)']
+    const execRes = await call("env/exec", {
+      command: "node",
+      args: ["-e", "console.log(\"RESULT:\" + process.env.SECRET_TOKEN + \" \" + process.env.API_ENDPOINT)"]
     });
     assert.equal(execRes.ok, true);
     assert.equal(execRes.exitCode, 0);
-    assert.ok(execRes.stdout.includes('[REDACTED_SECRET]'));
-    assert.ok(!execRes.stdout.includes('wldkvf-02847-prm'));
-    assert.ok(execRes.stdout.includes('https://api.example.com'));
+    assert.ok(execRes.stdout.includes("[REDACTED_SECRET]"));
+    assert.ok(!execRes.stdout.includes(SECRET));
+    assert.ok(execRes.stdout.includes("https://api.example.com"));
   } finally {
     proc.stdin.end();
     proc.kill();

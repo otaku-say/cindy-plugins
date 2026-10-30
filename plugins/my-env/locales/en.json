@@ -4,13 +4,19 @@
   "whenToUse": "Look up, manage or inject environment variables and credentials into sandboxes, containers or local commands without exposing plaintext in chat.",
   "tools": {
     "env_list": {
-      "description": "List stored variables with masked values, memo and updatedAt; returns { total, items }. Sensitive entries are always fully masked here.",
+      "description": "List stored variables with masked values, memo and updatedAt; returns { total, returned, offset, limit, hasMore, items }. Sensitive entries are always fully masked here.",
       "parameters": {
         "/properties/query": {
           "description": "Optional keyword matched against key names or memos."
         },
         "/properties/keys": {
-          "description": "Return only these exact keys (still masked); unknown keys are listed in 'missing'."
+          "description": "Return only these exact keys (still masked); unknown keys are listed in 'missing'. Complements env_get for batch lookups."
+        },
+        "/properties/limit": {
+          "description": "Page size 1-500, default 100. Use with offset for large stores."
+        },
+        "/properties/offset": {
+          "description": "Number of matching entries to skip, default 0."
         }
       }
     },
@@ -21,18 +27,21 @@
           "description": "Variable key name, for example GITHUB_TOKEN."
         },
         "/properties/allow_plaintext": {
-          "description": "Sensitive values are refused by default; pass true only when a third-party interface hard-requires the raw value."
+          "description": "Sensitive variables are refused by default, because the plaintext would land in the chat transcript. Set true only when a third-party interface hard-requires the raw value."
         }
       }
     },
     "env_set": {
-      "description": "Create or update one variable; returns { key, message, maskedValue, sensitive }.",
+      "description": "Create or update one variable; returns { key, message, maskedValue, sensitive, value_source }. Prefer value_from so the secret never travels through tool arguments; a plain 'value' is recorded in the chat transcript and the response says so in 'warning'.",
       "parameters": {
         "/properties/key": {
           "description": "Variable key name; letters, digits and underscores only."
         },
         "/properties/value": {
-          "description": "Value to store."
+          "description": "DEPRECATED for secrets: an inline value passes through the tool call and is persisted in the chat transcript. Use value_from, or have the user enter it in the settings page."
+        },
+        "/properties/value_from": {
+          "description": "Preferred source for the value. { file: '/abs/path' } reads the first line-safe content of a local file (a trailing newline is trimmed); { env: 'NAME' } copies the worker process environment variable NAME. Exactly one of file/env."
         },
         "/properties/memo": {
           "description": "Short note describing what this variable is for."
@@ -51,27 +60,30 @@
       }
     },
     "env_write_file": {
-      "description": "Safely write selected environment variables to a file (dotenv, shell script, or JSON) without exposing plaintext values in chat. Safe for injecting into sandboxes, containers, or local workspaces.",
+      "description": "Write explicitly selected variables to a file (dotenv, shell script, or JSON) without exposing plaintext values in chat. keys is required; the file is created 0600, never overwrites by default, refuses symlinks and paths outside the working directory.",
       "parameters": {
         "/properties/target_path": {
-          "description": "Target file path to write (e.g. '.env', '/var/minis/workspace/.env', or 'env.sh')."
+          "description": "Target file path to write (e.g. '.env' or '/var/minis/workspace/.env'); relative paths resolve against the working directory."
         },
         "/properties/keys": {
-          "description": "Optional list of variable keys to include. Omit or leave empty to write all stored variables."
+          "description": "REQUIRED list of variable keys to include. Unknown keys are reported in 'missing_keys'."
         },
         "/properties/format": {
           "description": "Output format: 'dotenv' (KEY=\"VAL\"), 'shell' (export KEY=\"VAL\"), or 'json'. Defaults to 'dotenv'."
         },
         "/properties/overwrite": {
-          "description": "Whether to overwrite the file if it already exists. Defaults to true."
+          "description": "Whether to overwrite an existing file. Defaults to false."
         },
         "/properties/file_mode": {
-          "description": "Octal file permissions on POSIX systems (e.g. '0600' for user read/write only). Defaults to '0600'. Ignored on Windows."
+          "description": "Octal file permissions on POSIX systems (e.g. '0600' for user read/write only). Defaults to '0600' and is applied at creation time. Ignored on Windows."
+        },
+        "/properties/allow_outside_cwd": {
+          "description": "Allow writing outside the current working directory. Defaults to false."
         }
       }
     },
     "env_exec": {
-      "description": "Execute a command with selected environment variables injected into the process environment, without exposing secrets in chat. Output is automatically sanitized to mask sensitive values.",
+      "description": "Execute a command with selected environment variables injected into the process environment, without exposing secrets in chat. Output is automatically sanitized to mask sensitive values; on timeout the process tree is killed and the partial output is returned with timedOut: true.",
       "parameters": {
         "/properties/command": {
           "description": "Executable or command to run (e.g. 'npm', 'python', 'git', 'curl')."
@@ -86,36 +98,51 @@
           "description": "Working directory for command execution. Defaults to current directory."
         },
         "/properties/timeout_ms": {
-          "description": "Execution timeout in ms (1000-300000, default 30000). Host hard cap is 120000 ms per request."
+          "description": "Execution timeout in ms (1000-110000, default 30000). The host caps a single node request at 120000 ms, so 110000 is the supported maximum; use a background job for longer silent work."
         },
         "/properties/shell": {
-          "description": "Run through the platform shell so $VAR expands; default false (auto for .cmd/.bat)."
+          "description": "Run through the platform shell so $VAR / %VAR% expansion works. Default false (auto-enabled for .cmd/.bat on Windows). Implemented as an explicit '/bin/sh -c' or 'cmd.exe /d /s /c' wrapper, never Node's shell:true; arguments containing spaces are quoted, and you own quoting when using command_line."
         },
         "/properties/command_line": {
-          "description": "Full command line executed through the shell, taking precedence over command+args. You own the quoting; nothing is silently re-escaped."
+          "description": "Full command line executed through the shell; takes precedence over command+args. Prefer this when you need shell semantics: you own the quoting, so nothing is silently re-escaped."
+        },
+        "/properties/stdin": {
+          "description": "Optional text piped to the child process stdin (for example 'git commit -F -' or feeding a CLI prompt)."
         }
       }
     },
     "env_probe": {
-      "description": "Probe stored credentials for validity without returning plaintext: 'github' returns login, scopes and repo push permission; 'http' returns a status code. Response bodies are never echoed back.",
+      "description": "Probe stored credentials for validity without ever returning their plaintext. 'github' checks api.github.com/user (plus repo push permission when repo is given); 'http' sends one GET request to url. keys is required, response bodies are never echoed back, and private/loopback targets are refused unless allow_private is true.",
       "parameters": {
         "/properties/kind": {
-          "description": "Probe type: github or http."
+          "description": "Probe type: 'github' or 'http'."
         },
         "/properties/keys": {
-          "description": "Variable keys to probe; omit to probe all sensitive keys."
+          "description": "REQUIRED variable keys to probe (max 20). There is no implicit 'all sensitive keys' mode, because probing sends the credential to a target."
         },
         "/properties/repo": {
-          "description": "GitHub only: additionally verify push permission for owner/repo."
+          "description": "GitHub only: owner/repo to additionally verify push permission."
         },
         "/properties/url": {
-          "description": "HTTP only: target URL (http/https)."
+          "description": "HTTP only: target URL (http/https). Must resolve to a public address unless allow_private is true."
+        },
+        "/properties/header": {
+          "description": "HTTP only: header name carrying the token, default Authorization."
+        },
+        "/properties/header_template": {
+          "description": "HTTP only: header value template containing {token}, default 'Bearer {token}'."
         },
         "/properties/ok_status": {
           "description": "HTTP only: status codes treated as healthy, default [200]."
         },
         "/properties/timeout_ms": {
           "description": "Per-request timeout in ms (1000-60000, default 15000)."
+        },
+        "/properties/allow_private": {
+          "description": "HTTP only: allow targeting loopback/private/link-local addresses (local dev servers). Defaults to false."
+        },
+        "/properties/allowed_hosts": {
+          "description": "HTTP only: optional exact hostname allowlist; when set, url must match one of these hosts."
         }
       }
     }

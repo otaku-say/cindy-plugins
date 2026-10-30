@@ -1,5 +1,6 @@
 // plugins/my-env/settings.js —— 设置页交互逻辑（严格遵守 CSP）
-// 写入一律「先重读、只改自己的那一项、再整体 PUT」，避免与 Agent 并发写时丢数据。
+// v0.3.0：设置页不再直接读写 /kv，而是通过 BroadcastChannel 请求 main.js → Node worker。
+// 这样设置页与 Agent 共用同一份数据：删除、改备注、改敏感标记都会真正生效。
 
 (function () {
   'use strict';
@@ -11,6 +12,7 @@
   var SVG_TRASH = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg>';
 
   var allVariables = {};
+  var storeStats = null;
   var filteredKeys = [];
   var currentPage = 1;
   var PAGE_SIZE = 5;
@@ -27,6 +29,7 @@
   var ioPanel = $('ioPanel'), ioHint = $('ioHint'), ioText = $('ioText'), ioStats = $('ioStats');
   var ioOverwrite = $('ioOverwrite'), ioOverwriteRow = $('ioOverwriteRow'), ioFile = $('ioFile');
   var ioFileBtn = $('ioFileBtn'), ioDownloadBtn = $('ioDownloadBtn'), ioPrimaryBtn = $('ioPrimaryBtn');
+  var storeInfo = $('storeInfo');
 
   var toastTimer = null;
   function showToast(msg, isError) {
@@ -113,44 +116,68 @@
     return entry.value.length <= 6 ? '••••••' : entry.value.slice(0, 3) + '…';
   }
 
-  function escapeHtml(text) {
-    var div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
+  // —— 与插件后台（Node worker）通信 ——
+  // 设置页沙箱里没有 cindy 对象，只有 BroadcastChannel 可达 main.js。
+  var CHANNEL = 'my-env';
+  var reqSeq = 0;
+  var pending = {};
+  var chan = null;
+  try { chan = new BroadcastChannel(CHANNEL); } catch (_) { chan = null; }
+
+  if (chan) {
+    chan.onmessage = function (event) {
+      var data = event.data || {};
+      var slot = data.id && pending[data.id];
+      if (!slot) return;
+      delete pending[data.id];
+      if (data.ok) slot.resolve(data);
+      else slot.reject(new Error(data.message || '插件后台返回失败'));
+    };
   }
 
-  async function readKv() {
-    var res = await fetch('/kv');
-    if (!res.ok) throw new Error('读取失败: HTTP ' + res.status);
-    var data = await res.json();
-    return data && typeof data === 'object' && !Array.isArray(data) ? data : {};
+  function rpc(payload) {
+    if (!chan) return Promise.reject(new Error('当前环境不支持设置页通道，请确认插件已启用'));
+    var id = 's' + (++reqSeq) + '-' + Date.now();
+    return new Promise(function (resolve, reject) {
+      pending[id] = { resolve: resolve, reject: reject };
+      setTimeout(function () {
+        if (!pending[id]) return;
+        delete pending[id];
+        reject(new Error('插件后台无响应：请确认插件处于启用状态'));
+      }, 15000);
+      try {
+        chan.postMessage(Object.assign({}, payload, { id: id }));
+      } catch (err) {
+        delete pending[id];
+        reject(err);
+      }
+    });
+  }
+
+  function formatBytes(n) {
+    if (!n) return '0 B';
+    if (n < 1024) return n + ' B';
+    if (n < 1024 * 1024) return (n / 1024).toFixed(1) + ' KB';
+    return (n / 1024 / 1024).toFixed(1) + ' MB';
+  }
+
+  function renderStoreInfo() {
+    if (!storeInfo) return;
+    if (!storeStats) { storeInfo.textContent = ''; return; }
+    storeInfo.textContent = '存储：' + storeStats.path + ' · ' + storeStats.count + ' 项 · ' +
+      formatBytes(storeStats.bytes) + ' · 权限 ' + (storeStats.mode || '未知');
   }
 
   async function loadData() {
     try {
-      var kv = await readKv();
-      allVariables = kv.variables && typeof kv.variables === 'object' && !Array.isArray(kv.variables) ? kv.variables : {};
+      var r = await rpc({ type: 'store' });
+      allVariables = r.variables && typeof r.variables === 'object' && !Array.isArray(r.variables) ? r.variables : {};
+      storeStats = r.stats || null;
+      renderStoreInfo();
       applyFilter();
     } catch (err) {
       showToast(err.message, true);
     }
-  }
-
-  // 重读-只改一项-写回，避免覆盖 Agent 在期间写入的其它键
-  async function mutate(mutator) {
-    var kv = await readKv();
-    var vars = kv.variables && typeof kv.variables === 'object' && !Array.isArray(kv.variables) ? kv.variables : {};
-    mutator(vars);
-    kv.variables = vars;
-    var body = JSON.stringify(kv);
-    if (body.length > 60 * 1024) throw new Error('存储超限: ' + body.length + ' 字节，上限 61440 字节。请先删除或缩短部分变量。');
-    var res = await fetch('/kv', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: body });
-    if (!res.ok) throw new Error('保存失败: HTTP ' + res.status);
-    try {
-      var ch = new BroadcastChannel('my-env');
-      ch.postMessage({ type: 'settings-updated' });
-    } catch (_) {}
-    await loadData();
   }
 
   function applyFilter() {
@@ -368,12 +395,8 @@
     ioStats.textContent = count ? (json.length + ' 字符') : '';
 
     if (!count) return;
-    copyToClipboard(json).then(function () {
-      showToast('已复制 ' + count + ' 项变量的 JSON', false);
-    }, function () {
-      selectAllInField(ioText);
-      showToast('已生成 JSON，请在下方手动复制或下载', true);
-    });
+    // v0.3.0：不再自动把明文写进系统剪贴板（剪贴板历史会长期留底），由用户显式点按钮。
+    selectAllInField(ioText);
   }
 
   function runImport() {
@@ -420,27 +443,19 @@
     if (overwrite && existing > 0 && !confirm('将覆盖 ' + existing + ' 个同名变量，确定导入吗？')) return;
 
     var added = 0;
-    var updated = 0;
     var skipped = 0;
+    if (overwrite && existing > 0 && !confirm('将覆盖 ' + existing + ' 个同名变量，确定导入吗？')) return;
+
     ioPrimaryBtn.disabled = true;
-    mutate(function (vars) {
-      keys.forEach(function (key) {
-        var exists = Object.prototype.hasOwnProperty.call(vars, key);
-        if (exists && !overwrite) {
-          skipped++;
-          return;
-        }
-        vars[key] = incoming[key];
-        if (exists) updated++;
-        else added++;
-      });
-    }).then(function () {
-      var parts = ['新增 ' + added];
-      if (updated) parts.push('覆盖 ' + updated);
-      if (skipped) parts.push('跳过同名 ' + skipped);
-      if (invalid.length) parts.push('忽略不合法 ' + invalid.length);
+    rpc({ type: 'import', variables: incoming, overwrite: overwrite }).then(function (res) {
+      var parts = ['新增 ' + res.added];
+      if (res.updated) parts.push('覆盖 ' + res.updated);
+      if (res.skipped) parts.push('跳过同名 ' + res.skipped);
+      var ignored = (res.invalid || []).length + invalid.length;
+      if (ignored) parts.push('忽略不合法 ' + ignored);
       showToast('导入完成：' + parts.join('，'), false);
       closeIoPanel();
+      return loadData();
     }, function (err) {
       showToast(err.message, true);
     }).then(function () {
@@ -474,9 +489,10 @@
 
   function removeKey(key) {
     if (!confirm('确定删除 ' + key + ' 吗？')) return;
-    mutate(function (vars) { delete vars[key]; }).then(function () {
+    rpc({ type: 'delete', key: key }).then(function () {
       showToast('已删除 ' + key, false);
       if (editingKey === key) resetForm();
+      return loadData();
     }, function (err) { showToast(err.message, true); });
   }
 
@@ -500,13 +516,18 @@
       envValue.focus();
       return;
     }
+    // 新增时如果同名键已存在，先确认，避免静默覆盖旧凭据
+    if (!editingKey && Object.prototype.hasOwnProperty.call(allVariables, key) &&
+      !confirm(key + ' 已存在，确定覆盖原来的值吗？')) {
+      envKey.focus();
+      return;
+    }
 
     saveBtn.disabled = true;
-    mutate(function (vars) {
-      vars[key] = { value: value, memo: memo, sensitive: sensitive, updatedAt: Date.now() };
-    }).then(function () {
+    rpc({ type: 'set', key: key, value: value, memo: memo, sensitive: sensitive }).then(function () {
       showToast('已保存 ' + key, false);
       resetForm();
+      return loadData();
     }, function (err) {
       showToast(err.message, true);
     }).then(function () {

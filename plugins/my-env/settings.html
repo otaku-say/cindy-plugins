@@ -349,7 +349,8 @@
 </head>
 <body>
   <h2>全局环境变量与凭据中枢 (My Env)</h2>
-  <div class="subtitle">键值以明文存在本机插件存储（/kv，非主机凭证保险库），Agent 可按需读取：请勿存放生产级高价值凭据；GitHub 等服务优先用支持主机托管登入的官方插件。</div>
+  <div class="subtitle">键值以明文存在本机插件存储（v0.3.0 起不再镜像到 /kv，目录 0700、文件 0600），Agent 可按需读取：请勿存放生产级高价值凭据；GitHub 等服务优先用支持主机托管登入的官方插件。</div>
+  <div class="subtitle" id="storeInfo"></div>
 
   <div id="toast" class="toast"></div>
 

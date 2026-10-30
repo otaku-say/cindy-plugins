@@ -1,6 +1,6 @@
 # Cindy Plugins Market（Cindy 自定义插件市场）
 
-[![Market Version](https://img.shields.io/badge/market-v0.2.4-blue.svg)](https://github.com/otaku-say/cindy-plugins)
+[![Market Version](https://img.shields.io/badge/market-v0.3.0-blue.svg)](https://github.com/otaku-say/cindy-plugins)
 [![Platform Matrix](https://img.shields.io/badge/platforms-6%20architectures-green.svg)](https://github.com/otaku-say/cindy-plugins)
 [![Security Audited](https://img.shields.io/badge/security-safeStorage%20isolated-orange.svg)](https://github.com/otaku-say/cindy-plugins)
 
@@ -56,7 +56,7 @@ Cindy 的自定义 git 市场里，卡片是显示 **「更新到 vX.Y.Z」** �
 | :--- | :--- | :--- | :--- | :--- | :--- |
 | **`cube-cli`** | **Cube CLI** | `$cube` | [`otaku-say/cube-cli`](https://github.com/otaku-say/cube-cli) | 6 架构全覆盖 | CubeSandbox 控制面遥控器：创建沙箱、生命周期启停、端口探测与元数据管理 |
 | **`aiod-cli`** | **Aiod CLI** | `$aiod` | [`otaku-say/aiod-cli`](https://github.com/otaku-say/aiod-cli) | 6 架构全覆盖 | 沙箱内部遥控器：命令与文件、PTY、代码解释器、浏览器、桌面 computer-use 与 MCP Server |
-| **`my-env`** | **My Env** | `$env` | 本仓库（纯 JS，无上游二进制） | 全平台（纯 JS） | 全局环境变量中枢：加密保存、按项目注入、零明文导出 |
+| **`my-env`** | **My Env** | `$env` | 本仓库（纯 JS，无上游二进制） | 全平台（纯 JS） | 全局环境变量中枢：本机 0600 存储、按项目注入、零明文落盘导出，超时杀进程树 |
 | **`subagent-router`** | **Subagent Router** | `$router` | 本仓库（纯 JS，无上游二进制） | 全平台（纯 JS） | 给 Cindy 子代理配模型链：按分组挑选与拖动排序模型，失败自动换下一个；一键注入/卸载随包 Pi 扩展 |
 
 ---
