@@ -1,6 +1,6 @@
 # Cindy Plugins Market（Cindy 自定义插件市场）
 
-[![Market Version](https://img.shields.io/badge/market-v0.3.0-blue.svg)](https://github.com/otaku-say/cindy-plugins)
+[![Market Version](https://img.shields.io/badge/market-v0.3.1-blue.svg)](https://github.com/otaku-say/cindy-plugins)
 [![Platform Matrix](https://img.shields.io/badge/platforms-6%20architectures-green.svg)](https://github.com/otaku-say/cindy-plugins)
 [![Security Audited](https://img.shields.io/badge/security-safeStorage%20isolated-orange.svg)](https://github.com/otaku-say/cindy-plugins)
 

@@ -11,7 +11,7 @@ const readline = require('node:readline');
 const ROOT = path.resolve(__dirname, '..');
 const PLUGIN = path.join(ROOT, 'plugins', 'my-env');
 const WORKER = path.join(PLUGIN, 'node', 'worker.cjs');
-const VERSION = '0.3.0';
+const VERSION = '0.3.1';
 
 function startWorker() {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'my-env-v30-'));

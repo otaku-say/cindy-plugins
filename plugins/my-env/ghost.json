@@ -4,7 +4,7 @@
   "name": "My Env",
   "description": "Cross-platform environment variables and secret manager: safely inject credentials into cloud sandboxes, containers and local commands without chat leakage.",
   "whenToUse": "Look up, manage or inject environment variables and credentials into sandboxes, containers or local commands without exposing plaintext in chat.",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "minCindyVersion": "3.0.0",
   "entry": "main.js",
   "command": "env",
