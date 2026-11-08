@@ -11,6 +11,7 @@
   var SVG_PENCIL = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg>';
   var SVG_TRASH = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg>';
 
+  var SVG_CHECK = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#2ea043" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
   var allVariables = {};
   var storeStats = null;
   var filteredKeys = [];
@@ -248,9 +249,18 @@
       copyBtn.className = 'pill-btn';
       copyBtn.innerHTML = SVG_COPY;
       copyBtn.title = '复制';
+      var copyResetTimer = null;
       copyBtn.onclick = function () {
         copyToClipboard(item.value).then(function () {
           showToast('已复制 ' + key, false);
+          copyBtn.innerHTML = SVG_CHECK;
+          copyBtn.title = '复制成功';
+          if (copyResetTimer) clearTimeout(copyResetTimer);
+          copyResetTimer = setTimeout(function () {
+            copyBtn.innerHTML = SVG_COPY;
+            copyBtn.title = '复制';
+            copyResetTimer = null;
+          }, 1500);
         }, function () {
           // 最后兜底：明文露出并自动选中，用户直接 Ctrl+C 即可
           valSpan.textContent = item.value || '';
