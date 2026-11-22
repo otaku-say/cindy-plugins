@@ -4,7 +4,7 @@
   "name": "Cube CLI",
   "description": "Remote control for the CubeSandbox control plane: sandbox lifecycle, ports and files.",
   "whenToUse": "Create, list, inspect, pause, resume, snapshot or delete a CubeSandbox; run commands or code inside a sandbox; upload and download files; debug control-plane connectivity.",
-  "version": "0.2.6",
+  "version": "0.2.7",
   "minCindyVersion": "3.0.0",
   "entry": "main.js",
   "command": "cube",
